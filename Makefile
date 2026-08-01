@@ -1,9 +1,15 @@
 .DEFAULT_GOAL := help
-.PHONY: help build test smoke lint fmt install
+.PHONY: help build test smoke lint fmt install docker docker-push
 
 BIN     := noeto-mcp
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo $(GIT_SHA))
+
+# GHCR rather than the ECR repository noeto-api pushes to: that one is private
+# and exists to feed one deployment. This image is the distribution channel —
+# it has to be publicly pullable by anyone who uses noeto, and it belongs beside
+# the source in the same GitHub org.
+IMAGE := ghcr.io/noeto-tasks/noeto-mcp
 
 # Update via: curl -s https://api.github.com/repos/golangci/golangci-lint/releases/latest | grep '"tag_name"'
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -50,3 +56,24 @@ lint: ## Run golangci-lint
 fmt: ## Format the code and tidy the module
 	gofmt -w .
 	go mod tidy
+
+# ── Container image ─────────────────────────────────────────────────────────
+# The distribution channel: a user with Docker needs no Go, no Node, and no
+# unquarantining — the config is `docker run -i --rm`, and stdio rides the pipe.
+
+docker: ## Build the image locally for this machine's architecture
+	docker build --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) -t $(IMAGE):latest .
+	@echo "==> $(IMAGE):$(VERSION)"
+
+# Both architectures, because the people this reaches are on Apple Silicon and
+# on x86 in roughly equal numbers, and a single-arch image fails on the other
+# with an exec-format error that says nothing about architecture.
+#
+# buildx pushes multi-arch directly; there is no local image to `docker push`
+# afterwards, which is why this is one target and not two.
+docker-push: ## Build and push a multi-arch image to GHCR (needs docker login ghcr.io)
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		--build-arg VERSION=$(VERSION) \
+		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest \
+		--push .
+	@echo "==> pushed $(IMAGE):$(VERSION) (amd64, arm64)"

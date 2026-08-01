@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -89,7 +90,8 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 
 	res, err := c.http.Do(req)
 	if err != nil {
-		return &Error{Message: fmt.Sprintf("could not reach the noeto API at %s: %v", c.baseURL, err)}
+		return &Error{Message: fmt.Sprintf("could not reach the noeto API at %s: %v%s",
+			c.baseURL, err, containerLoopbackHint(c.baseURL))}
 	}
 	defer func() { _ = res.Body.Close() }()
 
@@ -219,4 +221,43 @@ func (c *Client) AddComment(ctx context.Context, cardID, body string) (*Comment,
 		return nil, err
 	}
 	return &out.Comment, nil
+}
+
+// containerLoopbackHint explains the one failure everybody hits first when
+// running this image against a local noeto.
+//
+// Inside a container, localhost is the container — so NOETO_API_URL pointing at
+// 127.0.0.1 reaches nothing, and the error is a bare connection refused that
+// says nothing about why. The fix differs by platform, so the hint names both.
+//
+// Not a startup check, because the combination is not always wrong: `docker run
+// --network host` on Linux makes loopback work exactly as written. It is only
+// ever a hint, attached to a failure that already happened.
+func containerLoopbackHint(baseURL string) string {
+	if !inContainer() {
+		return ""
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return ""
+	}
+	switch parsed.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return ""
+	}
+
+	return "\n\nThis is running in a container, where localhost is the container itself. " +
+		"To reach a noeto on the host, set NOETO_API_URL to " +
+		"http://host.docker.internal:8081/api/v1 (macOS and Windows), " +
+		"or run the container with --network host (Linux)."
+}
+
+// inContainer reports whether this process is running inside a Docker
+// container. /.dockerenv is created by the daemon and is the cheapest reliable
+// signal; a false negative only costs the hint.
+func inContainer() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
 }

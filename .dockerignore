@@ -1,0 +1,7 @@
+# The build context is sent to the daemon in full, and bin/ holds a ~130 MB
+# golangci-lint that the image has no use for.
+bin/
+tmp/
+.git/
+README.md
+Makefile

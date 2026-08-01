@@ -13,20 +13,16 @@ no browser and no cookie — which is the whole reason it exists.
 the secret; it is shown once. The token is bound to the team you were in when
 you created it.
 
-**2. Install.**
-
-```sh
-make install
-```
-
-**3. Point your agent at it.** In Claude Code, `~/.claude.json` or the project's
-`.mcp.json`:
+**2. Point your agent at the image.** In Claude Code, `~/.claude.json` or the
+project's `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "noeto": {
-      "command": "/Users/you/go/bin/noeto-mcp",
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "NOETO_TOKEN", "-e", "NOETO_API_URL",
+               "ghcr.io/noeto-tasks/noeto-mcp:latest"],
       "env": {
         "NOETO_TOKEN": "noeto_pat_…",
         "NOETO_API_URL": "https://api.noeto.online/api/v1"
@@ -36,12 +32,38 @@ make install
 }
 ```
 
-`NOETO_API_URL` defaults to `http://localhost:8081/api/v1`, which is what
-`noeto-local` serves. Use an absolute path for `command` — the agent host's
-working directory is not yours.
+That is the whole install: no Go, no Node, and nothing to unquarantine. `-i`
+keeps stdin open, which is the pipe the protocol rides; `--rm` means the
+container goes when the conversation does. The two `-e` flags name the
+variables without values, so the token stays in one place — the `env` block —
+rather than being repeated on a command line that shows up in `ps`.
+
+The cost is that Docker has to be installed and running, and each session pays
+about a second to start the container. For a server the host starts once per
+conversation, that is not a latency anyone notices.
+
+> **Pointing at a local noeto?** `localhost` inside a container is the
+> container. Use `http://host.docker.internal:8081/api/v1` on macOS and
+> Windows, or add `--network host` on Linux. The server detects this case and
+> says so in the error, but it is easier to get right the first time.
 
 **One process serves one team.** The token says which. Two teams means two
 entries, each with its own token, named apart (`noeto-work`, `noeto-personal`).
+
+### Without Docker
+
+If you have a Go toolchain, `make install` puts `noeto-mcp` in your `GOBIN` and
+the config becomes `"command": "/absolute/path/to/noeto-mcp"` with the same
+`env` block. Use an absolute path — the agent host's working directory is not
+yours.
+
+### What this does not reach
+
+A stdio server runs on the machine the agent runs on, so this covers Claude
+Code and the desktop app. **claude.ai in a browser and the mobile apps cannot
+start a local process at all**, whatever it is packaged as. Reaching those
+needs a remote MCP server with OAuth, which is a different transport and a
+different authentication story — not a packaging problem.
 
 ## Tools
 
@@ -79,10 +101,16 @@ omitted argument leaves the field alone.
 ## Development
 
 ```sh
-make test    # hermetic — runs against a fake API
-make smoke   # contract check against a running noeto (needs NOETO_TOKEN)
+make test         # hermetic — runs against a fake API
+make smoke        # contract check against a running noeto (needs NOETO_TOKEN)
 make lint
+make docker       # build the image for this machine
+make docker-push  # build and push amd64 + arm64 to GHCR
 ```
+
+`make docker-push` needs `docker login ghcr.io` with a token carrying
+`write:packages`, and the package has to be made public once before anyone can
+pull it anonymously.
 
 `make smoke` earns its place because this repo is separate from `noeto-api`:
 that repo's `make openapi-check` cannot see this client, so nothing else would
