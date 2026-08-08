@@ -5,3 +5,8 @@ tmp/
 .git/
 README.md
 Makefile
+
+# Holds tokens, and the builder stage does `COPY . .` — the final image is
+# distroless and takes only the binary, but the layer it is copied into is
+# still a layer.
+.env

@@ -1,6 +1,20 @@
 .DEFAULT_GOAL := help
 .PHONY: help build test smoke lint fmt install docker docker-push release release-dry
 
+# Optional local settings, for the tokens the publishing targets need and for
+# anything else you would rather not retype: GITHUB_TOKEN for `make release`,
+# NOETO_TOKEN for `make smoke`.
+#
+# Read by make rather than by a shell, so the lines are plain KEY=value — no
+# `export`, no quotes, and a `#` anywhere starts a comment. `export` on its own
+# line passes them to the recipes. Read first so a VERSION set here wins over
+# the `?=` below.
+#
+# Gitignored and kept out of the build context. It holds a token that can
+# publish under your name, in plain text, which is the trade for not typing it.
+-include .env
+export
+
 BIN     := noeto-mcp
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo $(GIT_SHA))

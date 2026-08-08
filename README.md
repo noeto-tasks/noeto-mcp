@@ -164,8 +164,13 @@ make release      # publish a tagged release + update the Homebrew tap
 pull it anonymously.
 
 `make release` needs a tag on HEAD, a clean tree, and `GITHUB_TOKEN` with
-`repo` scope. There is no CI in this repo, so cutting a version is three
-commands from a laptop and they are easy to get out of order:
+`repo` scope — a classic token, since it writes a release here and commits the
+cask to the tap, and the same one can carry `write:packages` for the image.
+Tokens can go in a gitignored `.env` beside the Makefile as plain `KEY=value`
+lines rather than into your shell history; `make` reads it if it is there.
+
+There is no CI in this repo, so cutting a version is three commands from a
+laptop and they are easy to get out of order:
 
 ```sh
 git tag v0.1.0 && git push --tags
