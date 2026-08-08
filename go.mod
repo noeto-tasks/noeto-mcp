@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/rotisserie/eris v0.5.4
 )
 
 require (

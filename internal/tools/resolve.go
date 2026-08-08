@@ -1,12 +1,12 @@
 package tools
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/rotisserie/eris"
 
 	"noeto-mcp/internal/noeto"
 )
@@ -37,7 +37,7 @@ func requireID(kind, value string) error {
 	if isID(value) {
 		return nil
 	}
-	return fmt.Errorf(
+	return eris.Errorf(
 		"%s must be given by id, not by name (%q) — ids come from get_board or find_cards",
 		kind, value)
 }
@@ -74,7 +74,7 @@ func normalize(s string) string {
 func match(kind, want string, candidates map[string]string) (string, error) {
 	want = strings.TrimSpace(want)
 	if want == "" {
-		return "", fmt.Errorf("no %s given", kind)
+		return "", eris.Errorf("no %s given", kind)
 	}
 	if isID(want) {
 		return want, nil
@@ -101,9 +101,9 @@ func match(kind, want string, candidates map[string]string) (string, error) {
 	case 1:
 		return hits[0], nil
 	case 0:
-		return "", fmt.Errorf("no %s called %q — available: %s", kind, want, listNames(candidates))
+		return "", eris.Errorf("no %s called %q — available: %s", kind, want, listNames(candidates))
 	default:
-		return "", fmt.Errorf("%q matches more than one %s (%s) — name it exactly, or use its id",
+		return "", eris.Errorf("%q matches more than one %s (%s) — name it exactly, or use its id",
 			want, kind, strings.Join(namesOf(hits, candidates), ", "))
 	}
 }

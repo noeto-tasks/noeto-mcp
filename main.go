@@ -19,7 +19,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -27,6 +26,7 @@ import (
 	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rotisserie/eris"
 
 	"noeto-mcp/internal/noeto"
 	"noeto-mcp/internal/tools"
@@ -46,20 +46,25 @@ func main() {
 	log.SetOutput(os.Stderr)
 
 	if err := run(); err != nil {
-		log.Fatal(err)
+		// eris.ToString rather than the error itself, so the one line that kills
+		// the server carries where it came from. Text rather than eris.ToJSON —
+		// unlike noeto-api, this log stream is plain prefixed lines read in a
+		// terminal or an agent host's stderr pane, and a JSON blob among them is
+		// harder to read, not easier. Nothing aggregates these.
+		log.Fatal(eris.ToString(err, true))
 	}
 }
 
 func run() error {
 	token := strings.TrimSpace(os.Getenv("NOETO_TOKEN"))
 	if token == "" {
-		return fmt.Errorf("NOETO_TOKEN is not set — issue a token in noeto under Settings → Access tokens")
+		return eris.New("NOETO_TOKEN is not set — issue a token in noeto under Settings → Access tokens")
 	}
 	// Caught here rather than on the first 401, because a token pasted with the
 	// wrong prefix is a copy-paste error and saying so at startup is cheaper
 	// than an authentication failure three tool calls later.
 	if !strings.HasPrefix(token, "noeto_pat_") {
-		return fmt.Errorf("NOETO_TOKEN does not look like a noeto access token (expected a noeto_pat_ prefix)")
+		return eris.New("NOETO_TOKEN does not look like a noeto access token (expected a noeto_pat_ prefix)")
 	}
 
 	apiURL := strings.TrimSpace(os.Getenv("NOETO_API_URL"))

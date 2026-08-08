@@ -18,6 +18,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/rotisserie/eris"
 )
 
 // Client talks to one noeto deployment as one user in one team.
@@ -73,14 +75,14 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("encode request: %w", err)
+			return eris.Wrap(err, "encode request")
 		}
 		reader = bytes.NewReader(encoded)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reader)
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
+		return eris.Wrap(err, "build request")
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/json")
@@ -103,7 +105,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		return nil
 	}
 	if err := json.NewDecoder(res.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode %s %s: %w", method, path, err)
+		return eris.Wrapf(err, "decode %s %s", method, path)
 	}
 	return nil
 }
