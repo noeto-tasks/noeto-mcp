@@ -40,6 +40,33 @@ func Register(s *mcp.Server, api *noeto.Client) {
 	t.registerTeam(s)
 }
 
+// readOnly and writes describe what a tool does to the board, so a host can
+// decide what needs asking about before it runs.
+//
+// They earn their place through their defaults rather than their presence: a
+// tool with no annotations is destructive and open-world, because that is what
+// the spec assumes when the fields are absent. Neither is true here. Nothing
+// deletes, and a token reaches one team — so every tool below says so, and the
+// read-only five can be run without a prompt.
+func readOnly() *mcp.ToolAnnotations {
+	// DestructiveHint and IdempotentHint are left off: the spec reads them only
+	// when ReadOnlyHint is false.
+	return &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: ptr(false)}
+}
+
+// writes marks a tool that changes a board. idempotent is whether sending the
+// same arguments twice leaves the board where one call would: setting a due
+// date does, posting a comment does not.
+func writes(idempotent bool) *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{
+		DestructiveHint: ptr(false),
+		IdempotentHint:  idempotent,
+		OpenWorldHint:   ptr(false),
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
 // board loads a board by name or id, together with the team roster needed to
 // render assignees.
 //

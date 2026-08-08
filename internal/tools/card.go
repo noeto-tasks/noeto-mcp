@@ -32,12 +32,15 @@ func (t *server) registerCards(s *mcp.Server) {
 		Name: "get_card",
 		Description: "Read one card in full: its description and its comment thread. " +
 			"get_board gives you titles; this gives you the detail behind one of them.",
+		Annotations: readOnly(),
 	}, t.getCard)
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "create_card",
 		Description: "Add a card to a column. The board and column may be named; " +
 			"assignee and labels are resolved by name too.",
+		// Not idempotent: calling it twice leaves two cards.
+		Annotations: writes(false),
 	}, t.createCard)
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -45,6 +48,9 @@ func (t *server) registerCards(s *mcp.Server) {
 		Description: "Change a card's title, description, assignee, priority, due date " +
 			"or labels. Omitted fields are left alone. Send \"none\" to clear the " +
 			"assignee, priority or due date. Use move_card to change its column.",
+		// Idempotent: the arguments are the field values, not a delta, so a
+		// repeat sets them to what they already are.
+		Annotations: writes(true),
 	}, t.updateCard)
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -52,11 +58,16 @@ func (t *server) registerCards(s *mcp.Server) {
 		Description: "Move a card to another column, or reorder it within one. " +
 			"Position is relative: give before_card or after_card to place it next to " +
 			"a specific card; with neither it goes to the bottom of the column.",
+		// Idempotent: the destination is named, not stepped through, so a card
+		// already there stays there.
+		Annotations: writes(true),
 	}, t.moveCard)
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "comment_on_card",
 		Description: "Post a comment on a card, as the account the access token belongs to.",
+		// Not idempotent: calling it twice posts the comment twice.
+		Annotations: writes(false),
 	}, t.commentOnCard)
 }
 

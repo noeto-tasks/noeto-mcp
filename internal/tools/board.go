@@ -17,6 +17,7 @@ func (t *server) registerBoards(s *mcp.Server) {
 		Name: "list_boards",
 		Description: "List the boards in the team, with a card count for each. " +
 			"Start here when you do not know which board the work is on.",
+		Annotations: readOnly(),
 	}, t.listBoards)
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -24,6 +25,7 @@ func (t *server) registerBoards(s *mcp.Server) {
 		Description: "Read a whole board: its columns in order, and the cards in each " +
 			"column in the order they appear on screen. Assignees and labels are given " +
 			"by name. This is the call that gives you the card ids everything else needs.",
+		Annotations: readOnly(),
 	}, t.getBoard)
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -32,6 +34,7 @@ func (t *server) registerBoards(s *mcp.Server) {
 			"optional and combine with AND. Use this for questions like \"what is " +
 			"assigned to me\" or \"what is overdue\"; use get_board when you already " +
 			"know the board and want to see its shape.",
+		Annotations: readOnly(),
 	}, t.findCards)
 }
 

@@ -12,6 +12,7 @@ func (t *server) registerTeam(s *mcp.Server) {
 		Description: "List the people in the team. Every write tool accepts a member " +
 			"by name or email, so this is mainly for answering \"who is on this team\" " +
 			"and for disambiguating when two people share a first name.",
+		Annotations: readOnly(),
 	}, t.listMembers)
 }
 

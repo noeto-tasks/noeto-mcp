@@ -67,17 +67,25 @@ different authentication story — not a packaging problem.
 
 ## Tools
 
-| tool | what it does |
-|---|---|
-| `list_boards` | the team's boards, with card counts |
-| `get_board` | one board: columns in order, cards nested in them |
-| `find_cards` | search every board — text, assignee, label, priority, column, due date, overdue |
-| `get_card` | one card in full, with its comment thread |
-| `list_members` | who is on the team |
-| `create_card` | add a card to a column |
-| `update_card` | title, description, assignee, priority, due date, labels |
-| `move_card` | to another column, or reorder within one |
-| `comment_on_card` | post a comment |
+| tool | what it does | |
+|---|---|---|
+| `list_boards` | the team's boards, with card counts | reads |
+| `get_board` | one board: columns in order, cards nested in them | reads |
+| `find_cards` | search every board — text, assignee, label, priority, column, due date, overdue | reads |
+| `get_card` | one card in full, with its comment thread | reads |
+| `list_members` | who is on the team | reads |
+| `create_card` | add a card to a column | writes |
+| `update_card` | title, description, assignee, priority, due date, labels | writes |
+| `move_card` | to another column, or reorder within one | writes |
+| `comment_on_card` | post a comment | writes |
+
+**The last column is on the wire, not just in this table.** Each tool carries
+the spec's annotations, so a host can tell the five reads from the four writes
+without being told and skip the approval prompt on the reads. The writes say
+what they are too: none of them is destructive — nothing here deletes — and
+none reaches past the one team the token belongs to. That matters because the
+absent-field defaults say the opposite: a tool that ships no annotations is
+assumed destructive and open-world.
 
 **Names work where it is safe.** Boards, columns, labels, and people may be
 given by name — `move_card(card, column: "Done")` rather than a UUID. The card
