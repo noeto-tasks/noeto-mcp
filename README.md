@@ -13,8 +13,22 @@ no browser and no cookie — which is the whole reason it exists.
 the secret; it is shown once. The token is bound to the team you were in when
 you created it.
 
-**2. Point your agent at the image.** In Claude Code, `~/.claude.json` or the
-project's `.mcp.json`:
+**2. Point your agent at the image.** In Claude Code that is one command:
+
+```sh
+claude mcp add noeto -s user \
+  -e NOETO_TOKEN=noeto_pat_… \
+  -e NOETO_API_URL=https://api.noeto.online/api/v1 \
+  -- docker run -i --rm -e NOETO_TOKEN -e NOETO_API_URL ghcr.io/noeto-tasks/noeto-mcp:latest
+```
+
+`-s user` registers the server for every project instead of just the current
+directory, which is what you want for a tool that follows your work around; the
+default is the directory you happen to be standing in. Everything after `--` is
+the command the agent host will run.
+
+The same thing by hand — for another host, or to check what the command wrote —
+in `~/.claude.json` or the project's `.mcp.json`:
 
 ```json
 {
@@ -34,9 +48,12 @@ project's `.mcp.json`:
 
 That is the whole install: no Go, no Node, and nothing to unquarantine. `-i`
 keeps stdin open, which is the pipe the protocol rides; `--rm` means the
-container goes when the conversation does. The two `-e` flags name the
-variables without values, so the token stays in one place — the `env` block —
-rather than being repeated on a command line that shows up in `ps`.
+container goes when the conversation does. The two `-e` flags after `docker run`
+name the variables without values, so the token stays in the `env` block rather
+than riding a command line that shows up in `ps` every time the server starts.
+
+(It does pass through your own shell once, in the `claude mcp add` line, which
+most shells write to history. If that bothers you, edit the JSON instead.)
 
 The cost is that Docker has to be installed and running, and each session pays
 about a second to start the container. For a server the host starts once per
