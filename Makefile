@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build test smoke lint fmt install docker docker-push
+.PHONY: help build test smoke lint fmt install docker docker-push release release-dry
 
 BIN     := noeto-mcp
 GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
@@ -14,6 +14,10 @@ IMAGE := ghcr.io/noeto-tasks/noeto-mcp
 # Update via: curl -s https://api.github.com/repos/golangci/golangci-lint/releases/latest | grep '"tag_name"'
 GOLANGCI_LINT_VERSION := v2.12.2
 GOLANGCI_LINT := ./bin/golangci-lint
+
+# Update via: curl -s https://api.github.com/repos/goreleaser/goreleaser/releases/latest | grep '"tag_name"'
+GORELEASER_VERSION := v2.17.1
+GORELEASER := ./bin/goreleaser
 
 help: ## Show this help
 	@grep -hE '^[a-z][a-zA-Z0-9_-]*:.*##' $(MAKEFILE_LIST) | \
@@ -77,3 +81,26 @@ docker-push: ## Build and push a multi-arch image to GHCR (needs docker login gh
 		-t $(IMAGE):$(VERSION) -t $(IMAGE):latest \
 		--push .
 	@echo "==> pushed $(IMAGE):$(VERSION) (amd64, arm64)"
+
+# ── Release ─────────────────────────────────────────────────────────────────
+# The channel for the people the other two miss: the image needs Docker and
+# `make install` needs a Go toolchain and a clone. This one needs neither —
+# a prebuilt binary from a GitHub Release, or `brew install`.
+#
+# Run from a laptop after tagging. There is no CI in this repo, and the tag is
+# what names the artifacts and stamps the version into the binary.
+
+$(GORELEASER):
+	@echo "goreleaser not found — installing $(GORELEASER_VERSION)"
+	GOBIN=$(CURDIR)/bin go install github.com/goreleaser/goreleaser/v2@$(GORELEASER_VERSION)
+
+release-dry: $(GORELEASER) ## Build the release artifacts into dist/ without publishing
+	$(GORELEASER) release --snapshot --clean --skip=publish
+
+# goreleaser refuses to run without a tag on HEAD and a clean tree, which is the
+# behaviour we want: an artifact named after a commit it was not built from is
+# worse than no artifact. GITHUB_TOKEN needs `repo` scope — the release lands
+# here and the cask is committed to noeto-tasks/homebrew-tap.
+release: $(GORELEASER) ## Publish a tagged release to GitHub Releases + Homebrew tap
+	@: "$${GITHUB_TOKEN:?set GITHUB_TOKEN to a token with repo scope}"
+	$(GORELEASER) release --clean

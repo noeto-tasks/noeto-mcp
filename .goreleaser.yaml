@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# The third distribution channel, for the people the other two miss: the image
+# needs Docker, `make install` needs a Go toolchain and a clone, and plenty of
+# people who want an agent on their board have neither.
+#
+# Run from a laptop, not from CI — `make release` after tagging. See the Makefile.
+version: 2
+
+project_name: noeto-mcp
+
+before:
+  hooks:
+    - go mod tidy
+    # Cheap here and expensive to skip: these binaries go to strangers, and
+    # there is no CI between the tag and the upload to catch anything.
+    - go test ./...
+
+builds:
+  # Same flags the Dockerfile uses, for the same reasons: CGO off makes a static
+  # binary that needs nothing installed alongside it, and -s -w -trimpath keep it
+  # small and free of local paths.
+  - env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+# A cask rather than a formula: `brews` is deprecated upstream, and a cask is
+# what Homebrew now wants for a binary that is shipped rather than built.
+homebrew_casks:
+  - repository:
+      owner: noeto-tasks
+      name: homebrew-tap
+    homepage: https://noeto.online
+    description: An MCP server that lets an AI agent work a noeto board.
+    # Strip the quarantine flag macOS puts on anything downloaded. Without this
+    # Gatekeeper refuses to run an unsigned binary, and the refusal names the
+    # developer rather than the cause, which sends people looking in the wrong
+    # place. The real fix is signing and notarizing; this is the cheap one.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/noeto-mcp"]
+          end
+
+release:
+  footer: |
+    ## Install
+
+    ```sh
+    brew install noeto-tasks/tap/noeto-mcp
+    ```
+
+    Or take the archive for your platform below. Then see the README for wiring
+    it into an agent host — it is one `claude mcp add` line.

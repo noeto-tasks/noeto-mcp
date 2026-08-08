@@ -69,8 +69,32 @@ entries, each with its own token, named apart (`noeto-work`, `noeto-personal`).
 
 ### Without Docker
 
-If you have a Go toolchain, `make install` puts `noeto-mcp` in your `GOBIN` and
-the config becomes `"command": "/absolute/path/to/noeto-mcp"` with the same
+It is a single static binary, so there is nothing to install alongside it.
+With Homebrew:
+
+```sh
+brew install noeto-tasks/tap/noeto-mcp
+claude mcp add noeto -s user \
+  -e NOETO_TOKEN=noeto_pat_… \
+  -e NOETO_API_URL=https://api.noeto.online/api/v1 \
+  -- "$(brew --prefix)/bin/noeto-mcp"
+```
+
+Without Homebrew, take the archive for your platform from the
+[releases page](https://github.com/noeto-tasks/noeto-mcp/releases) — macOS,
+Linux and Windows, x86 and arm — unpack it, and point the config at wherever
+you put it. On macOS the download arrives quarantined, because the binary is
+not signed; `xattr -d com.apple.quarantine noeto-mcp` clears it. The cask does
+that for you, which is the reason to prefer it.
+
+And with a Go toolchain, `make install` puts `noeto-mcp` in your `GOBIN` and
+prints where it landed:
+
+```sh
+make install     # ==> /Users/you/go/bin/noeto-mcp
+```
+
+By hand, all three are `"command": "/absolute/path/to/noeto-mcp"` with the same
 `env` block. Use an absolute path — the agent host's working directory is not
 yours.
 
@@ -131,11 +155,26 @@ make smoke        # contract check against a running noeto (needs NOETO_TOKEN)
 make lint
 make docker       # build the image for this machine
 make docker-push  # build and push amd64 + arm64 to GHCR
+make release-dry  # build the release artifacts into dist/, publish nothing
+make release      # publish a tagged release + update the Homebrew tap
 ```
 
 `make docker-push` needs `docker login ghcr.io` with a token carrying
 `write:packages`, and the package has to be made public once before anyone can
 pull it anonymously.
+
+`make release` needs a tag on HEAD, a clean tree, and `GITHUB_TOKEN` with
+`repo` scope. There is no CI in this repo, so cutting a version is three
+commands from a laptop and they are easy to get out of order:
+
+```sh
+git tag v0.1.0 && git push --tags
+make release
+make docker-push   # the same tag now names the image, not a commit sha
+```
+
+`make release-dry` runs the whole thing into `dist/` without publishing, which
+is the way to find out that an archive is malformed before a stranger does.
 
 `make smoke` earns its place because this repo is separate from `noeto-api`:
 that repo's `make openapi-check` cannot see this client, so nothing else would
