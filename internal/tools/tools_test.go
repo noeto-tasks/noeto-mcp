@@ -64,14 +64,15 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 				map[string]any{
 					"id": cardID, "board_id": boardID, "column_id": todoID,
 					"title": "Fix the login bug", "description": "It 500s on Safari.",
-					"assignee_user_id": michalID, "priority": "high",
+					"assignee_user_id": michalID, "created_by_user_id": annaID, "priority": "high",
 					"due_date": "2026-08-14T00:00:00Z", "label_ids": []string{bugID},
 					"rank": "b", "comment_count": 1,
 				},
 				map[string]any{
 					"id": otherID, "board_id": boardID, "column_id": doneID,
 					"title": "Ship the landing page", "label_ids": []string{},
-					"rank": "b",
+					"created_by_user_id": "u-who-left",
+					"rank":               "b",
 				},
 			},
 		})
@@ -413,5 +414,61 @@ func TestClient_UnauthorizedExplainsItself(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "revoked") {
 		t.Errorf("message should tell the operator what to do: %v", err)
+	}
+}
+
+// ── who asked for it ────────────────────────────────────────────────────────
+
+// Assignee answers "who is doing this"; the creator answers "who wants it" —
+// which is the person to go back to when the card and its thread disagree, and
+// the one a board of incoming requests is actually organised around.
+func TestFindCards_NamesWhoCreatedTheCard(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Text: "safari"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("got %d cards, want one", len(cards))
+	}
+	if cards[0].CreatedBy != "Anna Novak" {
+		t.Errorf("created_by = %q, want the resolved name", cards[0].CreatedBy)
+	}
+	if cards[0].Assignee != "Michal Bocek" {
+		t.Errorf("assignee = %q — the two are different people and must not be confused",
+			cards[0].Assignee)
+	}
+}
+
+// A creator who has left the team is still on the card. Saying so beats a blank
+// field, which reads as "nobody created this".
+func TestFindCards_CreatorWhoLeftTheTeamIsStillNamed(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Text: "landing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) != 1 {
+		t.Fatalf("got %d cards, want one", len(cards))
+	}
+	if cards[0].CreatedBy != "(former member)" {
+		t.Errorf("created_by = %q, want the former-member marker", cards[0].CreatedBy)
+	}
+}
+
+// The API records a creator only for cards made since it started recording, and
+// the column is ON DELETE SET NULL. Absent is not the same as unrecognised: it
+// is a blank field, not a former member.
+func TestGetCard_NoCreatorRecordedIsBlank(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, card, err := s.getCard(context.Background(), nil, cardIn{Card: cardID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card.CreatedBy != "" {
+		t.Errorf("created_by = %q, want empty when the API sent none", card.CreatedBy)
 	}
 }

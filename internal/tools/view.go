@@ -50,10 +50,14 @@ type columnView struct {
 // cardView is a card as a model reads it: the fields that describe the work,
 // plus the id needed to act on it.
 type cardView struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Assignee string `json:"assignee,omitempty"`
-	Priority string `json:"priority,omitempty"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	// Assignee is who is doing it; CreatedBy is who asked for it. Both, because
+	// on a board where the work arrives as requests from other people, "who
+	// wants this" is who you go back to when the card and its thread disagree.
+	Assignee  string `json:"assignee,omitempty"`
+	CreatedBy string `json:"created_by,omitempty"`
+	Priority  string `json:"priority,omitempty"`
 	// Due is the calendar day, YYYY-MM-DD. The API sends midnight UTC; the time
 	// half is an artifact of the transport and is dropped rather than shown, so
 	// a model never has to reason about a timezone that does not exist.
@@ -152,6 +156,16 @@ func (n names) card(c noeto.Card) cardView {
 			v.Assignee = name
 		} else {
 			v.Assignee = "(former member)"
+		}
+	}
+	if c.CreatedByID != nil {
+		// Same fallback for the same reason. An absent id is different from an
+		// unrecognised one: absent means the API never recorded a creator, and
+		// that is a blank field rather than a former member.
+		if name, ok := n.member[*c.CreatedByID]; ok {
+			v.CreatedBy = name
+		} else {
+			v.CreatedBy = "(former member)"
 		}
 	}
 	if c.Priority != nil {

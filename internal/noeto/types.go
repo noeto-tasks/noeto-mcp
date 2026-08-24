@@ -30,12 +30,18 @@ type Column struct {
 }
 
 type Card struct {
-	ID          string     `json:"id"`
-	BoardID     string     `json:"board_id"`
-	ColumnID    string     `json:"column_id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	AssigneeID  *string    `json:"assignee_user_id"`
+	ID          string  `json:"id"`
+	BoardID     string  `json:"board_id"`
+	ColumnID    string  `json:"column_id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	AssigneeID  *string `json:"assignee_user_id"`
+	// CreatedByID is nullable on the wire and stays that way here: the API
+	// records it only for cards made since it started recording, and the column
+	// is ON DELETE SET NULL, so a deleted account leaves it empty rather than
+	// dangling. "Who asked for this" is the half of a card that assignee does
+	// not answer.
+	CreatedByID *string    `json:"created_by_user_id"`
 	Priority    *string    `json:"priority"`
 	DueDate     *time.Time `json:"due_date"`
 	LabelIDs    []string   `json:"label_ids"`

@@ -50,6 +50,17 @@ that one yourself; the [repository README](../../README.md) has the command.
 comment, and keep a written document on a card. The
 [repository README](../../README.md) documents the whole surface.
 
+**Formatted card lists, without typing a command.** Ask in plain language —
+"my cards", "what is overdue", "what is Jana waiting on" — and the answer comes
+back as a table with priority, who asked for the card, its comment count and its
+due date, rather than as raw tool output. That is a model-invoked skill, so
+there is nothing to remember.
+
+One thing it will ask you once: **which team member you are.** A personal access
+token cannot ask noeto who it belongs to — `/me` is `AuthUser` and tokens are
+confined to `AuthTenant` — so "my cards" has no way to resolve itself. Tell it
+once and it holds on to the answer.
+
 **`/card`** — takes one card to implemented work and reports back onto it:
 
 ```
