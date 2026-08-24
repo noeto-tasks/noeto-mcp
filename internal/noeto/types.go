@@ -121,3 +121,46 @@ type NewCard struct {
 	DueDate     *string  `json:"due_date,omitempty"`
 	LabelIDs    []string `json:"label_ids,omitempty"`
 }
+
+// Attachment is a file on a card — GET /cards/{id}/attachments.
+//
+// DownloadURL is a presigned credential with a short life. It exists here so
+// this package can fetch the object; it must never reach the model, which is
+// why no view in the tools package carries it.
+type Attachment struct {
+	ID string `json:"id"`
+	// UploadedByID is what makes replace safe: an attachment this server did
+	// not upload is somebody else's file, and deleting it is not this tool's
+	// business. The id of "us" comes from the attachment we just created —
+	// a personal access token cannot ask /me who it is.
+	UploadedByID string    `json:"uploaded_by_user_id"`
+	UploadedBy   string    `json:"uploaded_by_name"`
+	Filename     string    `json:"filename"`
+	ContentType  string    `json:"content_type"`
+	SizeBytes    int64     `json:"size_bytes"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	DownloadURL  string    `json:"download_url"`
+}
+
+// AttachmentReady is the status of a row whose upload was confirmed. A pending
+// row's object may not exist, and the API hides them from the list anyway.
+const AttachmentReady = "ready"
+
+// NewAttachment is the body of POST /cards/{id}/attachments.
+//
+// SizeBytes is not a hint: the API signs the content length into the presigned
+// PUT, so a body of a different length will not upload.
+type NewAttachment struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type,omitempty"`
+	SizeBytes   int64  `json:"size_bytes"`
+}
+
+// Upload is what POST /cards/{id}/attachments answers: a reserved row in
+// pending state, and where to put the bytes.
+type Upload struct {
+	Attachment    Attachment        `json:"attachment"`
+	UploadURL     string            `json:"upload_url"`
+	UploadHeaders map[string]string `json:"upload_headers"`
+}

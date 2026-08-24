@@ -1,8 +1,8 @@
 # noeto-mcp
 
 An MCP server that lets an AI agent work a [noeto](https://noeto.online) board:
-read what is on it, create and update cards, move them between columns, and
-comment.
+read what is on it, create and update cards, move them between columns,
+comment, and keep written documents attached to a card.
 
 It runs over stdio and authenticates with a personal access token, so it needs
 no browser and no cookie — which is the whole reason it exists.
@@ -13,7 +13,28 @@ no browser and no cookie — which is the whole reason it exists.
 the secret; it is shown once. The token is bound to the team you were in when
 you created it.
 
-**2. Point your agent at the image.** In Claude Code that is one command:
+**2a. As a plugin — the short way.** This repository is also a Claude Code
+marketplace, and the plugin bundles the server config with the `/card` workflow:
+
+```sh
+/plugin marketplace add noeto-tasks/noeto-mcp
+/plugin install noeto@noeto-mcp
+```
+
+Then export the token where Claude Code will see it — the plugin passes it
+through from the environment rather than storing it — and restart:
+
+```sh
+export NOETO_TOKEN=noeto_pat_…
+export NOETO_API_URL=https://api.noeto.online/api/v1
+```
+
+That is the whole install, and it registers the slash command too. See
+[`plugins/noeto/README.md`](plugins/noeto/README.md). Everything below is the
+same server registered by hand, which is what you want if you would rather run
+the native binary, or run two teams side by side.
+
+**2b. Point your agent at the image.** In Claude Code that is one command:
 
 ```sh
 claude mcp add noeto -s user \
@@ -119,14 +140,17 @@ different authentication story — not a packaging problem.
 | `update_card` | title, description, assignee, priority, due date, labels | writes |
 | `move_card` | to another column, or reorder within one | writes |
 | `comment_on_card` | post a comment | writes |
+| `read_document` | the Markdown source of a document on a card | reads |
+| `attach_document` | write one, replacing the previous of that name | replaces |
 
 **The last column is on the wire, not just in this table.** Each tool carries
-the spec's annotations, so a host can tell the five reads from the four writes
+the spec's annotations, so a host can tell the six reads from the five writes
 without being told and skip the approval prompt on the reads. The writes say
-what they are too: none of them is destructive — nothing here deletes — and
-none reaches past the one team the token belongs to. That matters because the
-absent-field defaults say the opposite: a tool that ships no annotations is
-assumed destructive and open-world.
+what they are too: none reaches past the one team the token belongs to, and
+only `attach_document` is destructive — it deletes the copy it supersedes, so a
+host can ask first. That matters because the absent-field defaults say the
+opposite: a tool that ships no annotations is assumed destructive and
+open-world.
 
 **Names work where it is safe.** Boards, columns, labels, and people may be
 given by name — `move_card(card, column: "Done")` rather than a UUID. The card
@@ -137,15 +161,69 @@ names are an error listing the candidates, never a first-match guess.
 **Clearing a field** is the word `none`: `update_card(card, due: "none")`. An
 omitted argument leaves the field alone.
 
+### Documents on a card
+
+`attach_document` and `read_document` are a pair, and the pair is the point.
+
+You pass Markdown and a filename. The Markdown is typeset into a single
+self-contained HTML file — inline CSS, no fonts to fetch, printable — and the
+source is sealed into that same file inside a `<script type="text/markdown">`
+block, which no browser renders or runs. `read_document` gives the source back
+byte for byte, so the next pass over the card builds on the last one instead of
+starting over. One artifact, no second copy to drift.
+
+The **filename is the identity**: it is what tells two documents on the same
+card apart, what `read_document` asks for, and what a replace matches on.
+Attaching `handover.html` beside a `design.html` leaves the latter untouched.
+It defaults to `design.html`, which is the one the `/card` workflow keeps on
+every card — the tools themselves are not about design documents specifically,
+which is why they are not named for one.
+
+That default use is worth describing, because it is what the shape is for. A
+card records what was asked and a git history records what changed; neither
+records *why this shape and not another one*, which is the expensive thing to
+reconstruct a month later. So one attachment on the card carries it.
+
+HTML rather than Markdown because of how noeto serves attachments: inline
+preview is an allow-list of image types, so anything textual is downloaded
+rather than opened — and a downloaded `.html` opens typeset on a double click,
+where a `.md` opens as a wall of hashes. The cost is a trip through the
+Downloads folder; the only format that avoids it is PDF, which cannot carry its
+own source.
+
+Whatever the name, it is overwritten in place — no `design-v2.html`, because
+after three rounds nobody can tell which one counts.
+A replace is **upload, complete, then delete**, in that order: attachments have
+no `PATCH` and the card has no unique constraint on the filename, so a duplicate
+is briefly visible — and this way round the card holds two documents for a
+moment and never zero. A failed upload deletes the row it reserved rather than
+leaving a dead reservation behind.
+
+It only ever deletes a document it wrote itself — same name, same uploader,
+**and** carrying the sealed source block. A file somebody else uploaded is their
+work, and so is one you put there by hand through the web UI; both are left
+alone, and anything left behind is named in the answer so you know to clean it
+up. On the way back, if the card holds more than one file of the name,
+`read_document` says so and names whose copy it returned — the newest wins, and that is not always
+yours.
+
+Both ends are bounded at 512 KB of Markdown, refused rather than truncated: a
+silently shortened source would be written back as the whole document on the
+next pass.
+
 ## What it deliberately does not do
 
 - **Create boards, columns, or labels.** Setting a board up is a different job
   from working one, and the schemas would cost every conversation context it
   will not use.
-- **Delete anything.** A card in the wrong column is recoverable; a deleted one
-  is not.
-- **Attachments.** Uploading is a three-request presigned dance, and download
-  links are short-lived credentials a model must not repeat.
+- **Delete anything a person made.** A card in the wrong column is recoverable;
+  a deleted one is not. The only delete is `attach_document` removing the
+  previous copy of a document it wrote itself.
+- **Attachments in general.** Uploading is a three-request presigned dance and
+  download links are short-lived credentials a model must not repeat — so there
+  is no upload of arbitrary files and no download of them — only the
+  Markdown-document pair above, which does both ends inside the process and
+  never hands back a URL.
 
 ## Development
 

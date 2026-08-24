@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -262,4 +263,216 @@ func containerLoopbackHint(baseURL string) string {
 func inContainer() bool {
 	_, err := os.Stat("/.dockerenv")
 	return err == nil
+}
+
+// ── Attachments ─────────────────────────────────────────────────────────────
+//
+// An upload is three requests and only the first and last are ours: the API
+// reserves a row and hands back a presigned PUT, the bytes go straight to the
+// object store, and a completion call reads the size and type back from the
+// store rather than trusting what we claimed.
+//
+// The middle request is the one to be careful with. It goes to a host that is
+// not noeto and the presigned URL already carries its own authorization, so the
+// access token must not ride along — see putObject.
+
+func (c *Client) ListAttachments(ctx context.Context, cardID string) ([]Attachment, error) {
+	var out struct {
+		Attachments []Attachment `json:"attachments"`
+	}
+	path := "/cards/" + url.PathEscape(cardID) + "/attachments"
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Attachments, nil
+}
+
+// CreateAttachment reserves a pending row and returns where to PUT the bytes.
+//
+// The row it leaves behind is real: an upload abandoned after this point stays
+// pending until somebody deletes it, which is why every caller here has a
+// deferred cleanup on the failure path.
+func (c *Client) CreateAttachment(ctx context.Context, cardID string, in NewAttachment) (*Upload, error) {
+	var out Upload
+	path := "/cards/" + url.PathEscape(cardID) + "/attachments"
+	if err := c.do(ctx, http.MethodPost, path, in, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) CompleteAttachment(ctx context.Context, attachmentID string) (*Attachment, error) {
+	var out struct {
+		Attachment Attachment `json:"attachment"`
+	}
+	path := "/attachments/" + url.PathEscape(attachmentID) + "/complete"
+	if err := c.do(ctx, http.MethodPost, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out.Attachment, nil
+}
+
+// DeleteAttachment removes one. The API lets an uploader delete their own and a
+// manager delete anyone's; anything else answers 404, which NotFound reports.
+func (c *Client) DeleteAttachment(ctx context.Context, attachmentID string) error {
+	return c.do(ctx, http.MethodDelete, "/attachments/"+url.PathEscape(attachmentID), nil, nil)
+}
+
+// putObject uploads the bytes to a presigned URL.
+//
+// Two things this deliberately does not do. It does not send the access token:
+// the URL is signed and the host is the object store, not noeto, so attaching a
+// noeto credential would hand it to a third party for nothing. And it does not
+// add headers of its own — the API signs the exact set it returned, so anything
+// extra or missing makes the signature fail with a message about the signature
+// rather than about the header.
+func (c *Client) putObject(ctx context.Context, uploadURL string, headers map[string]string, body []byte) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(body))
+	if err != nil {
+		return eris.Wrap(transportCause(err), "build upload request")
+	}
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
+	// Explicit, though bytes.Reader already sets it: the presign signs the
+	// content length, so a chunked body would be rejected. It is also the only
+	// way to set it — Header.Set is a no-op for Content-Length and Host, which
+	// Go takes from the request struct. The API sends neither today, so "the
+	// exact set it returned" holds; if it ever does, this loop will not carry
+	// them and the signature will fail.
+	req.ContentLength = int64(len(body))
+
+	res, err := c.http.Do(req)
+	if err != nil {
+		return &Error{Message: fmt.Sprintf("could not upload to the object store: %v", transportCause(err))}
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode >= 400 {
+		// The store answers XML, not problem+json, and its text is aimed at
+		// somebody debugging a signature. The status is the useful part.
+		return &Error{
+			Status:  res.StatusCode,
+			Message: fmt.Sprintf("the object store rejected the upload with %d", res.StatusCode),
+		}
+	}
+	return nil
+}
+
+// transportCause strips the URL out of an HTTP client failure.
+//
+// Every error from net/http is a *url.Error whose message embeds the request
+// URL, and Go redacts only userinfo from it — the query string survives whole.
+// For an object-store request that query string IS the credential: the
+// signature grants unauthenticated read of the object for as long as the
+// presign lives. Left alone, a DNS blip or a timeout would put it in the
+// model's context and in whatever the agent host writes to disk, which is
+// exactly what returning the content rather than the link exists to prevent.
+//
+// The wrapped cause — "no such host", "connection refused", "i/o timeout" — is
+// the whole of what a caller can act on anyway.
+//
+// Unwrapping alone is not quite enough. A transport error that quotes a
+// response header back — a malformed Location on a bucket redirect, say —
+// carries the URL in the inner error's own text, where unwrapping cannot reach
+// it. So the message is scrubbed as well as unwrapped: belt and braces on a
+// credential, which is the one place that is worth it.
+func transportCause(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	if scrubbed := redactQuery(err.Error()); scrubbed != err.Error() {
+		// The wrapping is lost, but only for a message that held a credential,
+		// and these are terminal messages a caller reads rather than branches on.
+		return errors.New(scrubbed)
+	}
+	return err
+}
+
+// signedURL matches an http(s) URL with a query string, wherever it appears in
+// a message. The query is the signature; the rest is diagnostics worth keeping.
+//
+// The `?` excluded from the captured half is load-bearing. Without it the
+// greedy quantifier backtracks to the LAST question mark in the run rather than
+// the first, so a message holding "…?X-Amz-Signature=…&k=a?b" would keep the
+// signature and redact only "b" — the one thing this function exists to stop.
+var signedURL = regexp.MustCompile(`(https?://[^\s"'?]*)\?[^\s"']*`)
+
+func redactQuery(message string) string {
+	return signedURL.ReplaceAllString(message, "$1?<redacted>")
+}
+
+// getObject fetches a presigned download, capped at limit bytes.
+//
+// Same rule as putObject about the token. The cap is a memory guard rather than
+// a policy: the API's own upload limit is what decides how large an attachment
+// may be, and this only refuses to hold something absurd in RAM.
+func (c *Client) getObject(ctx context.Context, downloadURL string, limit int64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return nil, eris.Wrap(transportCause(err), "build download request")
+	}
+
+	res, err := c.http.Do(req)
+	if err != nil {
+		return nil, &Error{Message: fmt.Sprintf("could not download from the object store: %v", transportCause(err))}
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode >= 400 {
+		return nil, &Error{
+			Status:  res.StatusCode,
+			Message: fmt.Sprintf("the object store refused the download with %d", res.StatusCode),
+		}
+	}
+
+	// limit+1 so a file exactly at the cap is not mistaken for one over it.
+	raw, err := io.ReadAll(io.LimitReader(res.Body, limit+1))
+	if err != nil {
+		return nil, eris.Wrap(transportCause(err), "read attachment")
+	}
+	if int64(len(raw)) > limit {
+		return nil, &Error{Message: fmt.Sprintf("the attachment is larger than %d bytes", limit)}
+	}
+	return raw, nil
+}
+
+// UploadAttachment runs the whole three-request dance and returns the ready row.
+//
+// The cleanup is the point of having it here rather than in a tool handler: a
+// PUT or a completion that fails leaves a pending row the API will never show
+// and never reap on its own, so the failure path deletes what it reserved
+// before returning. Best effort — the original error is what the caller needs
+// to hear, and a cleanup failure would only bury it.
+func (c *Client) UploadAttachment(ctx context.Context, cardID string, in NewAttachment, body []byte) (*Attachment, error) {
+	upload, err := c.CreateAttachment(ctx, cardID, in)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := c.putObject(ctx, upload.UploadURL, upload.UploadHeaders, body); err != nil {
+		_ = c.DeleteAttachment(context.WithoutCancel(ctx), upload.Attachment.ID)
+		return nil, err
+	}
+
+	ready, err := c.CompleteAttachment(ctx, upload.Attachment.ID)
+	if err != nil {
+		_ = c.DeleteAttachment(context.WithoutCancel(ctx), upload.Attachment.ID)
+		return nil, err
+	}
+	return ready, nil
+}
+
+// DownloadAttachment fetches an attachment's bytes.
+//
+// The presigned URL arrives on the listing and expires quickly, so it is used
+// here and never returned: a model handed one would repeat it into a transcript
+// that outlives it, and it is a bearer credential for as long as it lives.
+func (c *Client) DownloadAttachment(ctx context.Context, a Attachment, limit int64) ([]byte, error) {
+	if a.DownloadURL == "" {
+		return nil, &Error{Message: fmt.Sprintf(
+			"%q has no download link — the API could not sign one, which usually means object storage is misconfigured", a.Filename)}
+	}
+	return c.getObject(ctx, a.DownloadURL, limit)
 }

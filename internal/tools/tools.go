@@ -1,6 +1,6 @@
 // Package tools registers the noeto tool surface on an MCP server.
 //
-// Nine tools, shaped by what someone asks an agent to do rather than by what
+// Eleven tools, shaped by what someone asks an agent to do rather than by what
 // the API exposes. The API has thirty-five endpoints; a bridge that published
 // all of them would spend the model's context on schemas for things it will
 // never call (push subscriptions, invitation revocation, OAuth callbacks) and
@@ -13,11 +13,15 @@
 //     scratch is a different job from one that works on an existing board, and
 //     including it costs every conversation the schema for something almost
 //     none of them will use.
-//   - Deletion of anything. Destroying work on a model's judgement is a poor
-//     trade against the convenience; a card in the wrong column is recoverable
-//     and a deleted one is not.
-//   - Attachments. Uploading takes three requests through presigned URLs, and
-//     download links are short-lived credentials a model must not repeat.
+//   - Deletion of anything a person made. Destroying work on a model's
+//     judgement is a poor trade against the convenience; a card in the wrong
+//     column is recoverable and a deleted one is not. The one delete that
+//     exists is attach_document replacing the previous copy of its own document.
+//   - Attachments in general. Uploading takes three requests through presigned
+//     URLs and download links are short-lived credentials a model must not
+//     repeat, so there is no upload of arbitrary files and no download of them
+//     — only the Markdown-document pair, which handles both ends inside this
+//     process and never hands a URL back.
 package tools
 
 import (
@@ -37,6 +41,7 @@ func Register(s *mcp.Server, api *noeto.Client) {
 	t := &server{api: api}
 	t.registerBoards(s)
 	t.registerCards(s)
+	t.registerDocuments(s)
 	t.registerTeam(s)
 }
 
@@ -45,9 +50,10 @@ func Register(s *mcp.Server, api *noeto.Client) {
 //
 // They earn their place through their defaults rather than their presence: a
 // tool with no annotations is destructive and open-world, because that is what
-// the spec assumes when the fields are absent. Neither is true here. Nothing
-// deletes, and a token reaches one team — so every tool below says so, and the
-// read-only five can be run without a prompt.
+// the spec assumes when the fields are absent. Neither is true of most of these
+// — a token reaches one team, and only attach_document deletes anything — so
+// every tool below says which it is, and the read-only six can be run without a
+// prompt.
 func readOnly() *mcp.ToolAnnotations {
 	// DestructiveHint and IdempotentHint are left off: the spec reads them only
 	// when ReadOnlyHint is false.
@@ -61,6 +67,18 @@ func writes(idempotent bool) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{
 		DestructiveHint: ptr(false),
 		IdempotentHint:  idempotent,
+		OpenWorldHint:   ptr(false),
+	}
+}
+
+// replaces marks the one tool that removes something to put something else in
+// its place. Idempotent — running it twice leaves one document, the second one
+// — but destructive, because the copy it supersedes is gone and a host should
+// be able to ask before that happens.
+func replaces() *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{
+		DestructiveHint: ptr(true),
+		IdempotentHint:  true,
 		OpenWorldHint:   ptr(false),
 	}
 }

@@ -105,4 +105,33 @@ func TestSmoke_ContractStillHolds(t *testing.T) {
 	if _, _, err := s.findCards(ctx, nil, findCardsIn{}); err != nil {
 		t.Fatalf("find_cards: %v", err)
 	}
+
+	// Attachments, read-only. read_document is the one place where a contract
+	// change would be invisible until it mattered: the listing is what carries
+	// the presigned download URL and the uploader id, and neither has a
+	// fallback — no URL means no read, and no uploader id means a replace
+	// cannot tell our own document from somebody else's.
+	list, err := s.api.ListAttachments(ctx, card.ID)
+	if err != nil {
+		t.Fatalf("list attachments: %v", err)
+	}
+	for _, a := range list {
+		if a.Filename == "" || a.UploadedByID == "" {
+			t.Errorf("attachment did not decode: %+v", a)
+		}
+		if a.Status == noeto.AttachmentReady && a.DownloadURL == "" {
+			t.Errorf("a ready attachment came back with no download link: %s", a.Filename)
+		}
+		// Ordering, not decoration: latestNamed picks the newest copy on this
+		// field alone. If it stops decoding, every row is the zero time, After
+		// is never true, and "the newest was returned" quietly becomes
+		// "whichever the API listed first" — while the note still claims the
+		// former, and the next attach_document writes that stale base back.
+		if a.CreatedAt.IsZero() {
+			t.Errorf("attachment created_at did not decode: %s", a.Filename)
+		}
+	}
+	if len(list) == 0 {
+		t.Log("no attachments on this card; the listing shape went unchecked")
+	}
 }

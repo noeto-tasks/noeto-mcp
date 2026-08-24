@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "noeto-mcp",
+  "description": "The noeto board in Claude Code: the MCP server and the workflow that drives it",
+  "owner": {
+    "name": "noeto",
+    "url": "https://noeto.online"
+  },
+  "plugins": [
+    {
+      "name": "noeto",
+      "description": "Work a noeto kanban board from Claude Code — read and write cards, and keep a written document on a card that survives between sessions. Bundles the MCP server, so there is nothing to register by hand.",
+      "source": "./plugins/noeto",
+      "version": "0.2.0",
+      "category": "productivity",
+      "tags": ["kanban", "project-management", "noeto", "mcp"]
+    }
+  ]
+}

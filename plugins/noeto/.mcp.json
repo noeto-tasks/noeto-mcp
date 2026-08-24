@@ -1,0 +1,11 @@
+{
+  "noeto": {
+    "command": "docker",
+    "args": [
+      "run", "-i", "--rm",
+      "-e", "NOETO_TOKEN",
+      "-e", "NOETO_API_URL",
+      "ghcr.io/noeto-tasks/noeto-mcp:latest"
+    ]
+  }
+}

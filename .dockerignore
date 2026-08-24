@@ -6,6 +6,14 @@ tmp/
 README.md
 Makefile
 
+# Claude Code plugin files, and whatever agents have written under .claude/.
+# The plugin is installed from the repository — it is not in the release
+# tarballs either, which carry the binary and README only — and the server
+# reads none of it, so none of it belongs in a build layer.
+.claude-plugin/
+plugins/
+.claude/
+
 # Holds tokens, and the builder stage does `COPY . .` — the final image is
 # distroless and takes only the binary, but the layer it is copied into is
 # still a layer.

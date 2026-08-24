@@ -83,6 +83,35 @@ type commentView struct {
 	Body   string `json:"body"`
 }
 
+// documentView and documentSourceView are the two halves of the document pair.
+// Neither carries a URL: the API signs a download link on every attachment
+// listing, it is a bearer credential with a short life, and a model handed one
+// would repeat it into a transcript that outlives it. The content comes back
+// instead.
+type documentView struct {
+	Filename string `json:"filename"`
+	Bytes    int    `json:"bytes"`
+	// Replaced counts the earlier versions of this document that were deleted
+	// after the new one landed.
+	Replaced int `json:"replaced,omitempty"`
+	// Note names everything the replace deliberately did not touch, so a
+	// duplicate left on the card is something somebody knows to clean up.
+	Note string `json:"note,omitempty"`
+}
+
+// documentSourceView names the uploader on purpose: any team member can put a
+// file on a card, so where the source came from is part of reading it.
+type documentSourceView struct {
+	Filename   string `json:"filename"`
+	UploadedBy string `json:"uploaded_by"`
+	When       string `json:"when"`
+	// Note fires when the card holds more than one file of this name. Only one
+	// can be returned, and a silent pick would hide that a choice was made —
+	// including the case where somebody else's file is the newer one.
+	Note     string `json:"note,omitempty"`
+	Markdown string `json:"markdown"`
+}
+
 type memberView struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`

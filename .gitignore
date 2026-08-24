@@ -2,3 +2,9 @@ tmp/
 bin/
 dist/
 .env
+
+# Agent memory. Written by the review agents under the shared memory protocol
+# and useful locally, but this repository is public: the notes name internal
+# paths in sibling repositories and record accepted-but-unfixed residual risks,
+# which is a map nobody needs to publish. Drop this line to share them.
+.claude/
