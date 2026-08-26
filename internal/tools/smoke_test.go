@@ -92,6 +92,33 @@ func TestSmoke_ContractStillHolds(t *testing.T) {
 		t.Errorf("get_card and get_board disagree on the title: %q vs %q", detail.Title, card.Title)
 	}
 
+	// created_by is the newest field on the wire and the one with no loud
+	// failure mode: it is nullable, so a rename decodes to empty exactly like a
+	// card that genuinely predates the feature, and the "asked by" column just
+	// quietly goes blank.
+	//
+	// It therefore cannot be asserted, only counted — and counting is worth
+	// more than nothing, because a board where not one card names a creator is
+	// either very old or a contract that has moved.
+	var withCreator, total int
+	for _, col := range board.Columns {
+		for _, c := range col.Cards {
+			total++
+			if c.CreatedBy != "" {
+				withCreator++
+			}
+		}
+	}
+	switch {
+	case total == 0:
+	case withCreator == 0:
+		t.Logf("none of the %d cards on this board names a creator — either every one of "+
+			"them predates the feature, or created_by_user_id stopped decoding. "+
+			"Open a recently created card in noeto and check whether it shows an author.", total)
+	default:
+		t.Logf("created_by decodes: %d of %d cards name a creator", withCreator, total)
+	}
+
 	_, members, err := s.listMembers(ctx, nil, listMembersIn{})
 	if err != nil {
 		t.Fatalf("list_members: %v", err)
