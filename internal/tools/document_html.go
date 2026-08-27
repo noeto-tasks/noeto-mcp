@@ -19,9 +19,13 @@ import (
 // HTML rather than Markdown because of how noeto serves attachments. Inline
 // preview is an allow-list of image types, so anything textual is downloaded
 // rather than opened — and a downloaded .html opens typeset on a double click,
-// while a downloaded .md opens as a wall of hashes. The cost of that choice is
-// one click through Downloads instead of a click inside noeto; the only format
-// that would avoid it is PDF, which cannot carry its own source.
+// while a downloaded .md opens as a wall of hashes. The only format that would
+// also render inside the app is PDF, which cannot carry its own source.
+//
+// The web app no longer needs it to: it reads the source block below and renders
+// that on the card (document-source.ts), so the trip through Downloads is for
+// when somebody wants the file itself. Which is why the delimiters and the
+// escaping here are a contract with the frontend, not a private detail.
 //
 // Sealing the source inside the artifact is what makes the document a carrier
 // of context rather than a write-only decoration. read_document gets back exactly

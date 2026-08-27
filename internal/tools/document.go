@@ -42,10 +42,11 @@ const (
 	// tell which of design-v2 and design-final is the one that counts.
 	defaultDocumentName = "design.html"
 
-	// documentContentType is what the file is signed and stored as. noeto forces
-	// a download for it rather than rendering it — text/html is deliberately
-	// off the inline allow-list there — which is exactly the behaviour this
-	// format was chosen for.
+	// documentContentType is what the file is signed and stored as. noeto never
+	// serves it inline — text/html is deliberately off the inline allow-list
+	// there — so a download is what the object store hands over, which is
+	// exactly the behaviour this format was chosen for. The web app reads the
+	// document on the card instead, from the source block sealed below.
 	documentContentType = "text/html"
 
 	// maxDocumentBytes caps what read_document will hold in memory. It sits above
