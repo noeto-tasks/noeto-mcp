@@ -11,7 +11,7 @@
       "name": "noeto",
       "description": "Work a noeto kanban board from Claude Code — read and write cards, and keep a written document on a card that survives between sessions. Bundles the MCP server, so there is nothing to register by hand.",
       "source": "./plugins/noeto",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "category": "productivity",
       "tags": ["kanban", "project-management", "noeto", "mcp"]
     }

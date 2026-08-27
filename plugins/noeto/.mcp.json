@@ -5,7 +5,7 @@
       "run", "-i", "--rm",
       "-e", "NOETO_TOKEN",
       "-e", "NOETO_API_URL",
-      "ghcr.io/noeto-tasks/noeto-mcp:latest"
+      "ghcr.io/noeto-tasks/noeto-mcp:v0.2.1"
     ]
   }
 }
