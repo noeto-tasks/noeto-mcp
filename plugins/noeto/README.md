@@ -56,6 +56,14 @@ back as a table with priority, who asked for the card, its comment count and its
 due date, rather than as raw tool output. That is a model-invoked skill, so
 there is nothing to remember.
 
+There is a command form when you would rather type than ask:
+
+```
+/card-lists              your own cards
+/card-lists Jana         Jana's cards
+/card-lists all          the whole team
+```
+
 One thing it will ask you once: **which team member you are.** A personal access
 token cannot ask noeto who it belongs to — `/me` is `AuthUser` and tokens are
 confined to `AuthTenant` — so "my cards" has no way to resolve itself. Tell it

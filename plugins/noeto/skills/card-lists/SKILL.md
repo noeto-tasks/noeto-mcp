@@ -1,7 +1,8 @@
 ---
 name: card-lists
-description: How to present noeto cards to a person. Use whenever the answer is a list of cards — "my cards", "what am I working on", "what is on the board", "what is overdue", "what is assigned to X", "what should I do next" — and whenever a noeto card list is about to be shown for any other reason. Covers resolving who "me" is, which single call to make, and the table to render.
-version: 1.0.0
+description: How to present noeto cards to a person. Use whenever the answer is a list of cards — "my cards", "what am I working on", "what is on the board", "what is overdue", "what is assigned to X", "what should I do next" — and whenever a noeto card list is about to be shown for any other reason. Takes an optional argument: a team member whose cards to list, or the word for "all" to list the whole team; no argument means the person's own cards. Covers resolving who "me" is, which single call to make, and the table to render.
+version: 1.1.0
+argument-hint: [team member | all]
 ---
 
 # Showing noeto cards
@@ -9,6 +10,31 @@ version: 1.0.0
 A list of cards is something a person scans, not something they read. The
 default failure is dumping the tool's JSON, or writing a paragraph per card;
 both make the reader do the work of finding the one card that matters.
+
+## Whose cards
+
+- Argument: $ARGUMENTS
+
+Four cases, in this order — the first one that applies wins:
+
+1. **The request already names somebody.** "What is Jana waiting on", "what is
+   unassigned" — that is the answer, whatever the argument says or does not say.
+   The rules below are for the bare command, where the argument is all there is.
+2. **No argument → the person's own cards.** `find_cards(assignee: …)` against
+   whoever they are; see "My cards" below for resolving that once.
+3. **The argument names a team member → their cards.** Pass what was typed
+   straight into `find_cards(assignee: …)`; it takes a name, an e-mail or an id,
+   and the literal `none` for unassigned cards. Do not call `list_members` first
+   to translate it. An ambiguous name comes back as an error listing the
+   candidates rather than a guess — that is the moment to ask which one, and the
+   only one.
+4. **The argument is the word for "all" → the whole team, no assignee filter.**
+   Whatever the person's language uses — `all`, `everyone`, `vše`, `všichni`.
+   Then `find_cards()` with the other filters only.
+
+Case 4 is the one that overflows: a whole team usually exceeds the 25 rows a
+table is worth, so the row cap under "When a list is the wrong shape" applies,
+and the column notes below switch **asked by** to **assignee**.
 
 ## One call, not N
 
@@ -31,8 +57,8 @@ endpoint is `AuthUser` and tokens are confined to `AuthTenant`, so there is no
 "assigned to me" filter and no way to derive one. This is a hard limit, not a
 gap to work around.
 
-So when somebody says "my cards" and you do not already know which team member
-they are:
+So when the list is theirs — they said "my cards", or they gave no argument at
+all — and you do not already know which team member they are:
 
 1. Call `list_members`.
 2. Ask them which one they are — once.
