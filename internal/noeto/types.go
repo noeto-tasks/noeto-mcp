@@ -4,7 +4,7 @@ import "time"
 
 // The wire shapes of the noeto API, narrowed to the fields this server reads.
 //
-// Deliberately not generated from openapi.yaml. Nine tools touch nine
+// Deliberately not generated from openapi.yaml. Twelve tools touch eleven
 // endpoints; a generator would add a build step and several thousand lines of
 // client to save the hundred below, and it would still need hand-written
 // wrappers to turn "PATCH /cards/{id} with a partial body" into something a

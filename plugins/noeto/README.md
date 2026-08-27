@@ -104,3 +104,10 @@ a `.md` does not.
 The tools are not specific to design documents: the filename is a parameter, and
 `design.html` is only the default. Attaching `handover.html` beside it leaves the
 design record untouched.
+
+Files somebody else put on the card are read with `read_attachment` — a
+screenshot of the bug, an exported spec, a log. `/card` reads them during triage,
+because an attachment is usually the half of the requirement nobody restated in
+the description. Text comes back as text and an image as an image; a PDF or an
+archive is refused by name, so you are told the file is there rather than left to
+triage as though it were not.

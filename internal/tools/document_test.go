@@ -95,6 +95,9 @@ type attachmentAPI struct {
 	hideUploader bool
 	// uploadURL, when set, overrides where the client is told to PUT.
 	uploadURL string
+	// listStatus, when set, is what the attachment listing answers, to exercise
+	// get_card degrading rather than failing outright.
+	listStatus int
 }
 
 const (
@@ -108,11 +111,18 @@ func newAttachmentAPI(t *testing.T) *attachmentAPI {
 
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /boards/{id}", serveBoard)
+	mux.HandleFunc("GET /members", serveMembers)
+
 	mux.HandleFunc("GET /cards/{id}/detail", func(w http.ResponseWriter, _ *http.Request) {
+		api.mu.Lock()
+		count := len(api.ready())
+		api.mu.Unlock()
 		writeJSON(w, map[string]any{
 			"card": map[string]any{
 				"id": cardID, "board_id": boardID, "column_id": todoID,
 				"title": "Maximální počet dětí u rodiče", "label_ids": []string{}, "rank": "b",
+				"attachment_count": count,
 			},
 			"comments": []any{},
 		})
@@ -121,6 +131,11 @@ func newAttachmentAPI(t *testing.T) *attachmentAPI {
 	mux.HandleFunc("GET /cards/{id}/attachments", func(w http.ResponseWriter, _ *http.Request) {
 		api.mu.Lock()
 		defer api.mu.Unlock()
+		if api.listStatus != 0 {
+			w.WriteHeader(api.listStatus)
+			writeJSON(w, map[string]any{"status": api.listStatus, "code": "internal", "detail": "The listing failed."})
+			return
+		}
 		writeJSON(w, map[string]any{"attachments": api.ready()})
 	})
 

@@ -134,7 +134,7 @@ different authentication story — not a packaging problem.
 | `list_boards` | the team's boards, with card counts | reads |
 | `get_board` | one board: columns in order, cards nested in them | reads |
 | `find_cards` | search every board — text, assignee, label, priority, column, due date, overdue | reads |
-| `get_card` | one card in full, with its comment thread | reads |
+| `get_card` | one card in full: comment thread, and the files on it by name | reads |
 | `list_members` | who is on the team | reads |
 | `create_card` | add a card to a column | writes |
 | `update_card` | title, description, assignee, priority, due date, labels | writes |
@@ -142,9 +142,10 @@ different authentication story — not a packaging problem.
 | `comment_on_card` | post a comment | writes |
 | `read_document` | the Markdown source of a document on a card | reads |
 | `attach_document` | write one, replacing the previous of that name | replaces |
+| `read_attachment` | any file on a card — text as text, an image as an image | reads |
 
 **The last column is on the wire, not just in this table.** Each tool carries
-the spec's annotations, so a host can tell the six reads from the five writes
+the spec's annotations, so a host can tell the seven reads from the five writes
 without being told and skip the approval prompt on the reads. The writes say
 what they are too: none reaches past the one team the token belongs to, and
 only `attach_document` is destructive — it deletes the copy it supersedes, so a
@@ -211,6 +212,34 @@ Both ends are bounded at 512 KB of Markdown, refused rather than truncated: a
 silently shortened source would be written back as the whole document on the
 next pass.
 
+### Reading the other files
+
+`read_attachment` is for everything the pair above did not write — a screenshot
+pasted onto a bug, a log excerpt, an exported CSV. `get_card` names what is on
+a card; this reads one of them by that name.
+
+**Text comes back as text and an image as an image.** Anything else — a PDF, an
+archive, a binary — is refused by name and by size, because there is no useful
+way to put it in front of a model and a refusal that says so beats base64 the
+model throws away.
+
+**The declared content type decides nothing on its own.** It is a field the
+uploader filled in at upload time, not something the API measured, so it only
+routes the attempt and the bytes overrule it: text has to decode as UTF-8 and
+carry no control characters, and an image is re-sniffed and sent under the type
+its bytes actually are. A binary calling itself `text/plain` is refused rather
+than poured into the conversation. SVG is the exception among images — it is
+markup that can carry script and no decoder is involved in reading it, so its
+source comes back as text.
+
+**A document `attach_document` wrote answers with its Markdown source here
+too**, so the two tools never give different answers about the same file.
+
+Limits are 512 KB for text and 1.5 MB for an image, checked against the length
+the API signed into the upload — so an oversized file is refused before it is
+fetched rather than after. And as with the document pair, the presigned URL
+never leaves the process: contents come back, links never do.
+
 ## What it deliberately does not do
 
 - **Create boards, columns, or labels.** Setting a board up is a different job
@@ -219,11 +248,12 @@ next pass.
 - **Delete anything a person made.** A card in the wrong column is recoverable;
   a deleted one is not. The only delete is `attach_document` removing the
   previous copy of a document it wrote itself.
-- **Attachments in general.** Uploading is a three-request presigned dance and
-  download links are short-lived credentials a model must not repeat — so there
-  is no upload of arbitrary files and no download of them — only the
-  Markdown-document pair above, which does both ends inside the process and
-  never hands back a URL.
+- **Upload arbitrary files.** It is a three-request presigned dance, and the
+  one file worth writing from here is the document `attach_document` writes.
+  Reading is a different matter and `read_attachment` does it — but like the
+  document pair, it fetches inside the process and answers with contents,
+  because a download link is a short-lived bearer credential a model must never
+  be handed.
 
 ## Development
 

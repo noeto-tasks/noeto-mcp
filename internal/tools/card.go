@@ -30,8 +30,9 @@ const clear = "none"
 func (t *server) registerCards(s *mcp.Server) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "get_card",
-		Description: "Read one card in full: its description and its comment thread. " +
-			"get_board gives you titles; this gives you the detail behind one of them.",
+		Description: "Read one card in full: its description, its comment thread, and " +
+			"the files attached to it by name. get_board gives you titles; this gives " +
+			"you the detail behind one of them, and the filenames read_attachment takes.",
 		Annotations: readOnly(),
 	}, t.getCard)
 
@@ -85,9 +86,29 @@ func (t *server) getCard(ctx context.Context, _ *mcp.CallToolRequest, in cardIn)
 		return nil, nil, err
 	}
 
+	// The detail endpoint counts attachments but does not name them, so naming
+	// them costs a second request — worth making on the cards that have files
+	// and not worth making on the ones that do not, which is what the count is
+	// read for. Issued alongside the board fetch, which has to wait for the
+	// detail anyway, so it adds no latency to the call.
+	type listing struct {
+		files []noeto.Attachment
+		err   error
+	}
+	attached := make(chan listing, 1)
+	if detail.Card.AttachmentCount > 0 {
+		go func() {
+			list, err := t.api.ListAttachments(ctx, in.Card)
+			attached <- listing{list, err}
+		}()
+	} else {
+		attached <- listing{}
+	}
+
 	// The card names its labels, so the board it belongs to has to be loaded
 	// to translate them — the detail endpoint returns ids alone.
 	board, members, err := t.board(ctx, detail.Card.BoardID)
+	onCard := <-attached
 	if err != nil {
 		return nil, nil, err
 	}
@@ -97,6 +118,13 @@ func (t *server) getCard(ctx context.Context, _ *mcp.CallToolRequest, in cardIn)
 		cardView:    render.card(detail.Card),
 		Description: detail.Card.Description,
 		Thread:      render.comments(detail.Comments),
+		Files:       fileViews(onCard.files),
+	}
+	if onCard.err != nil {
+		// Reported rather than returned. The card is what get_card is for, and
+		// the file listing is an extra on top of it; failing the whole answer
+		// because the extra failed would be the wrong way round.
+		view.Note = "the files on this card could not be listed: " + onCard.err.Error()
 	}
 	view.Board = board.Board.Name
 	view.Column = columnIndex(board.Columns)[detail.Card.ColumnID]

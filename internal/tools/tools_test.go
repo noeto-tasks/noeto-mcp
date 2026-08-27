@@ -49,41 +49,8 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 		}})
 	})
 
-	mux.HandleFunc("GET /boards/{id}", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{
-			"board": map[string]any{"id": boardID, "name": "Roadmap"},
-			"columns": []any{
-				map[string]any{"id": todoID, "board_id": boardID, "name": "Todo", "position": 0},
-				map[string]any{"id": doingID, "board_id": boardID, "name": "In Progress", "position": 1},
-				map[string]any{"id": doneID, "board_id": boardID, "name": "Done", "position": 2},
-			},
-			"labels": []any{
-				map[string]any{"id": bugID, "board_id": boardID, "name": "bug", "color": "#ff0000"},
-			},
-			"cards": []any{
-				map[string]any{
-					"id": cardID, "board_id": boardID, "column_id": todoID,
-					"title": "Fix the login bug", "description": "It 500s on Safari.",
-					"assignee_user_id": michalID, "created_by_user_id": annaID, "priority": "high",
-					"due_date": "2026-08-14T00:00:00Z", "label_ids": []string{bugID},
-					"rank": "b", "comment_count": 1,
-				},
-				map[string]any{
-					"id": otherID, "board_id": boardID, "column_id": doneID,
-					"title": "Ship the landing page", "label_ids": []string{},
-					"created_by_user_id": "u-who-left",
-					"rank":               "b",
-				},
-			},
-		})
-	})
-
-	mux.HandleFunc("GET /members", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{"members": []any{
-			map[string]any{"user_id": michalID, "name": "Michal Bocek", "email": "michal@example.com", "role": "owner"},
-			map[string]any{"user_id": annaID, "name": "Anna Novak", "email": "anna@example.com", "role": "member"},
-		}})
-	})
+	mux.HandleFunc("GET /boards/{id}", serveBoard)
+	mux.HandleFunc("GET /members", serveMembers)
 
 	mux.HandleFunc("GET /cards/{id}/detail", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
@@ -118,6 +85,44 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 	fake.Server = httptest.NewServer(mux)
 	t.Cleanup(fake.Close)
 	return fake
+}
+
+// serveBoard and serveMembers are shared with the attachment fixture, which
+// needs the same board behind its cards to render one.
+func serveBoard(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]any{
+		"board": map[string]any{"id": boardID, "name": "Roadmap"},
+		"columns": []any{
+			map[string]any{"id": todoID, "board_id": boardID, "name": "Todo", "position": 0},
+			map[string]any{"id": doingID, "board_id": boardID, "name": "In Progress", "position": 1},
+			map[string]any{"id": doneID, "board_id": boardID, "name": "Done", "position": 2},
+		},
+		"labels": []any{
+			map[string]any{"id": bugID, "board_id": boardID, "name": "bug", "color": "#ff0000"},
+		},
+		"cards": []any{
+			map[string]any{
+				"id": cardID, "board_id": boardID, "column_id": todoID,
+				"title": "Fix the login bug", "description": "It 500s on Safari.",
+				"assignee_user_id": michalID, "created_by_user_id": annaID, "priority": "high",
+				"due_date": "2026-08-14T00:00:00Z", "label_ids": []string{bugID},
+				"rank": "b", "comment_count": 1,
+			},
+			map[string]any{
+				"id": otherID, "board_id": boardID, "column_id": doneID,
+				"title": "Ship the landing page", "label_ids": []string{},
+				"created_by_user_id": "u-who-left",
+				"rank":               "b",
+			},
+		},
+	})
+}
+
+func serveMembers(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]any{"members": []any{
+		map[string]any{"user_id": michalID, "name": "Michal Bocek", "email": "michal@example.com", "role": "owner"},
+		map[string]any{"user_id": annaID, "name": "Anna Novak", "email": "anna@example.com", "role": "member"},
+	}})
 }
 
 func writeJSON(w http.ResponseWriter, body any) {

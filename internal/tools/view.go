@@ -79,6 +79,41 @@ type cardDetailView struct {
 	cardView
 	Description string        `json:"description,omitempty"`
 	Thread      []commentView `json:"thread,omitempty"`
+	// Files names what cardView only counts, and shadows that count on the way
+	// out. On one card the names are the thing — they are what read_attachment
+	// is addressed by; get_board and find_cards keep the number, where a list
+	// per card would be noise.
+	Files []fileView `json:"files,omitempty"`
+	// Note fires when the file listing could not be fetched. Losing the whole
+	// card because of it would be a poor trade, and an empty list would read as
+	// a card with nothing attached, so the failure is named instead.
+	Note string `json:"note,omitempty"`
+}
+
+// fileView is one attachment as it appears on a card: enough to decide whether
+// to read it, and the name read_attachment is asked for. No id, because the
+// name addresses it, and no link — the API signs a download URL onto every
+// listing and it is a short-lived bearer credential.
+type fileView struct {
+	Filename   string `json:"filename"`
+	Type       string `json:"type,omitempty"`
+	Bytes      int64  `json:"bytes"`
+	UploadedBy string `json:"uploaded_by,omitempty"`
+	When       string `json:"when"`
+}
+
+// attachmentView is one attachment's contents. Which of Text and Markdown is
+// set says how it was read; for an image neither is, and the pixels travel
+// beside this as an image content block.
+type attachmentView struct {
+	Filename   string `json:"filename"`
+	Type       string `json:"type,omitempty"`
+	Bytes      int64  `json:"bytes"`
+	UploadedBy string `json:"uploaded_by,omitempty"`
+	When       string `json:"when"`
+	Note       string `json:"note,omitempty"`
+	Text       string `json:"text,omitempty"`
+	Markdown   string `json:"markdown,omitempty"`
 }
 
 type commentView struct {
@@ -227,6 +262,39 @@ func memberViews(list []noeto.Member) []memberView {
 	out := make([]memberView, 0, len(list))
 	for _, m := range list {
 		out = append(out, memberView{ID: m.UserID, Name: m.Name, Email: m.Email, Role: m.Role})
+	}
+	return out
+}
+
+// fileViews renders a card's attachments, newest copy of each name first.
+//
+// Pending rows are dropped: their object may not exist yet, the API hides them
+// from its own listing, and read_attachment would not return one either.
+func fileViews(list []noeto.Attachment) []fileView {
+	ready := make([]noeto.Attachment, 0, len(list))
+	for _, a := range list {
+		if a.Status == noeto.AttachmentReady {
+			ready = append(ready, a)
+		}
+	}
+	// By name, then newest first within a name, so the duplicates a card can
+	// accumulate sit together and the one read_attachment would return leads.
+	sort.SliceStable(ready, func(i, j int) bool {
+		if ready[i].Filename != ready[j].Filename {
+			return ready[i].Filename < ready[j].Filename
+		}
+		return ready[i].CreatedAt.After(ready[j].CreatedAt)
+	})
+
+	out := make([]fileView, 0, len(ready))
+	for _, a := range ready {
+		out = append(out, fileView{
+			Filename:   a.Filename,
+			Type:       baseType(a.ContentType),
+			Bytes:      a.SizeBytes,
+			UploadedBy: a.UploadedBy,
+			When:       a.CreatedAt.Format(time.RFC3339),
+		})
 	}
 	return out
 }
