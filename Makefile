@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help build test smoke lint fmt install docker docker-push release release-dry
+.PHONY: help build test smoke lint fmt install docker docker-push release release-dry release-plugin
 
 # Optional local settings, for the tokens the publishing targets need and for
 # anything else you would rather not retype: GITHUB_TOKEN for `make release`,
@@ -118,3 +118,54 @@ release-dry: $(GORELEASER) ## Build the release artifacts into dist/ without pub
 release: $(GORELEASER) ## Publish a tagged release to GitHub Releases + Homebrew tap
 	@: "$${GITHUB_TOKEN:?set GITHUB_TOKEN to a token with repo scope}"
 	$(GORELEASER) release --clean
+
+# ── Plugin release ──────────────────────────────────────────────────────────
+# Shipping a plugin version by hand is four things that have to agree: the image
+# tag pinned in .mcp.json and the README, the version in both manifests, the git
+# tag, and what is actually in GHCR. This target is the one command that keeps
+# them in step.
+#
+# RELEASE is plain semver — 0.2.1. The git tag and the image tag carry a `v`,
+# the two plugin manifests do not; that mismatch is the whole reason this is a
+# target and not a sed one-liner in someone's shell history.
+#
+# The order is the point. Everything local and reversible runs first, and the
+# image is pushed *before* the commit that pins it becomes public, so no failure
+# can leave the plugin pinned to a tag that does not exist in GHCR. If a step
+# after the commit fails, undo with:
+#   git tag -d v<version> && git reset --hard HEAD~1
+
+PLUGIN_MANIFEST      := plugins/noeto/.claude-plugin/plugin.json
+MARKETPLACE_MANIFEST := .claude-plugin/marketplace.json
+PINNED_FILES         := plugins/noeto/.mcp.json README.md
+
+release-plugin: $(GORELEASER) ## Ship a plugin version end to end (RELEASE=0.2.1)
+	@[ -n "$(RELEASE)" ] || { echo "set RELEASE to the new version, without a leading v — e.g. make release-plugin RELEASE=0.2.1"; exit 1; }
+	@echo "$(RELEASE)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "RELEASE must be plain semver with no leading v, got: $(RELEASE)"; exit 1; }
+	@[ -z "$$(git status --porcelain)" ] || { echo "working tree is dirty — commit or stash first"; exit 1; }
+	@[ "$$(git rev-parse --abbrev-ref HEAD)" = "main" ] || { echo "not on main — this repo releases from main"; exit 1; }
+	@! git rev-parse -q --verify "refs/tags/v$(RELEASE)" >/dev/null || { echo "tag v$(RELEASE) already exists"; exit 1; }
+# Checked here rather than in `release`, where it would fail after the image and
+# the commit are already public and there is nothing left to undo cheaply.
+	@: "$${GITHUB_TOKEN:?set GITHUB_TOKEN to a token with repo scope}"
+	$(MAKE) test lint
+# perl, not `sed -i`, because the in-place flag takes an argument on BSD and not
+# on GNU, and this runs on both.
+	IMG='$(IMAGE)' TAG='v$(RELEASE)' perl -pi -e 's/\Q$$ENV{IMG}\E:[\w.-]+/$$ENV{IMG}:$$ENV{TAG}/g' $(PINNED_FILES)
+	VER='$(RELEASE)' perl -pi -e 's/("version"\s*:\s*)"[^"]*"/$$1"$$ENV{VER}"/' $(PLUGIN_MANIFEST) $(MARKETPLACE_MANIFEST)
+	@if command -v claude >/dev/null 2>&1; then claude plugin validate .; \
+	else echo "claude not on PATH — skipping manifest validation"; fi
+	git add $(PINNED_FILES) $(PLUGIN_MANIFEST) $(MARKETPLACE_MANIFEST)
+	git commit -m "release: plugin v$(RELEASE)"
+	git tag -a "v$(RELEASE)" -m "v$(RELEASE)"
+# VERSION is passed explicitly: it defaults to `git describe --exact-match`,
+# which is right here, but leaving the image tag to a default at the one moment
+# it must match the pin is how the pin and the image drift apart.
+	$(MAKE) docker-push VERSION=v$(RELEASE)
+	git push origin main --follow-tags
+	$(MAKE) release
+	@if command -v claude >/dev/null 2>&1; then \
+		claude plugin marketplace update noeto-mcp; \
+		claude plugin update noeto@noeto-mcp; \
+		echo "==> restart Claude Code to load noeto v$(RELEASE)"; \
+	else echo "claude not on PATH — update the plugin by hand"; fi
