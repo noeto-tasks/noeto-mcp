@@ -1,7 +1,7 @@
 {
   "name": "noeto",
   "description": "Work a noeto kanban board from Claude Code: the MCP server, and the /card workflow that takes a card to implemented work and reports back onto it",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "author": {
     "name": "noeto",
     "url": "https://noeto.online"
