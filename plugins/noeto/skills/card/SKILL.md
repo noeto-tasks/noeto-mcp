@@ -19,7 +19,9 @@ Turn one noeto card into implemented work, and put the context, the questions an
 
 **Where to run it.** The working directory above is the one the run uses, and the listing beside it is what it will offer: the git working trees among its subdirectories, or the directory itself when that is the repository. Nothing else is a candidate — a subdirectory without a `.git` is a folder, not a repository. If the listing is empty, say so and ask where the repositories are before going any further.
 
-**Language.** Everything that lands on the card — comments, the design document — is written in the language of the card. Talk to the user in the language they use.
+**Language.** Everything that lands on the card — every comment and the whole design document — is written in the language of the card, never in yours and never in the user's when the two differ. Talk to the user in the language they use; write to the board in the language the board already speaks.
+
+**The card's language is the language of its description**, which is where the requirement was actually written. When the description is too short to tell, take it from the comment thread, then from the title. A card written in Czech whose title happens to carry an English product name is still a Czech card. If the card genuinely gives you nothing to go on, ask — one question is cheaper than a document the team cannot read.
 
 **Every comment opens with the same line**, whichever step writes it: `🤖 **Claude Code** — <what this comment is>`. The access token comments as a real person — noeto has no bot account — so that marker is the only thing telling the team an agent wrote the text.
 
@@ -229,6 +231,7 @@ One short summary to the user: which card, which repository, which route it was 
 - **A contradiction is only settled by somebody entitled to settle it.** Otherwise it still goes to the card.
 - **The report comment is for the person who asked, not for the maintainer.** Business language; the technical trail is the commit and the design document.
 - **Every comment is short and factual.** A handful of lines, no preamble, decisions rather than reasoning.
+- **Everything written onto the card is in the card's language**, comments and the design document alike — taken from the description, not from the language of the conversation.
 - **Read the whole thread before writing a comment.** Comments cannot be edited or deleted.
 - **The route — proof of concept or full implementation — is the user's call, and the workflow that runs it is whatever this installation has.** Never hardcode a workflow name, and never substitute one route for the other to make a run possible.
 - **Never commit.**
