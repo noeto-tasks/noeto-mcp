@@ -56,7 +56,7 @@ Read everything before deciding anything.
 
 **The output of this step is a reformulated requirement** — one consolidated text that says what will be built. Everything after it works from that text: triage in step 3 judges *it*, the design document in step 4 is built on it, and it is what the implementation workflow is handed. Where it differs from the card's description, it wins, and step 4 records why.
 
-Getting there is a conversation, and **the user closes it, not you.** This is the last cheap moment in the run: after triage everything is delegated, and `/feature` will implement a confident misunderstanding without blinking.
+Getting there is a conversation, and **the user closes it, not you.** This is the last cheap moment in the run: after triage everything is delegated, and an implementation workflow will implement a confident misunderstanding without blinking.
 
 It is also what protects the thread. Comments cannot be edited or deleted, so a question the person standing here can answer in ten seconds must never become a permanent comment on somebody else's board.
 
@@ -155,13 +155,25 @@ Post the comment step 2 asked for, if there is one to post, then continue to ste
 
    - what was chosen, and what was rejected, and why,
    - what was assumed,
-   - what is still open.
+   - what is still open,
+   - **which route it was built as** — a proof of concept and an implementation leave code that means different things, and a month later nothing else in the repository says which one this was.
 
    The document is a **carrier of context, not an approval gate**. Nobody waits on it. Its value is realised on the next pass over the same card, when `read_document` hands it back.
 
-3. **Delegate the implementation.** If a `/feature` command is available, run it with the reformulated requirement the user confirmed in step 2 — passed on as it stands, not re-summarised — and the absolute path of the target repository; it then owns planning, implementation, tests and review, and you do not second-guess it. That run shares this skill's permissions, which is the only reason `Write` and `Edit` are in the header — never for implementing anything yourself. If there is no such command in this installation, **stop here and hand the requirement to the user** rather than implementing it yourself: this workflow is an adapter, and an adapter that starts writing code is the duplicate implementation path it exists to avoid.
+3. **Settle how it gets built.** Two routes, and the card decides which one is honest:
 
-4. **Do not commit.** A repository without feature branches makes an automatic commit an unreviewed push straight to `main`. The commit is the user's, through whatever commit workflow they use.
+   - **Proof of concept** — the shortest path to something running. No tests, no review, thrown away if the answer is no. Right when the card asks whether something is possible at all, or when the user wants to see the idea working before committing to it.
+   - **Full implementation** — planning, tests, review, code that stays. Right when the card is work that ships.
+
+   **Ask which one**, with `AskUserQuestion` — it is two discrete options. Skip the question only when the card or step 2 already answered it: "zkusit, jestli to jde" is a proof of concept, acceptance criteria are an implementation. Say which one you read it as either way.
+
+4. **Delegate to whatever this installation has, and do not assume a name.** Read the skills and commands available in this session and pick the one whose own description matches the route: something prototype-oriented for a proof of concept, something end-to-end — plan, implement, test, review — for a full implementation. **Never hardcode a workflow name here.** Installations differ, they get renamed, and a skill that insists on one name fails silently in an installation that does not have it.
+
+   Hand the chosen workflow the reformulated requirement the user confirmed in step 2 — as it stands, not re-summarised — and the absolute path of the target repository. It then owns how the work is done, and you do not second-guess it. That run shares this skill's permissions, which is the only reason `Write` and `Edit` are in the header — never for implementing anything yourself.
+
+   **When the route you need has no workflow here**, say what you looked for and what you found. If the other route's workflow is the only one available, offer it as a choice rather than substituting it: quietly running a prototype workflow for work that ships, or a full one for a throwaway experiment, is a decision the user did not make. **When nothing matches at all, stop and hand the requirement to the user** rather than implementing it yourself — this workflow is an adapter, and an adapter that starts writing code is the duplicate implementation path it exists to avoid.
+
+5. **Do not commit.** A repository without feature branches makes an automatic commit an unreviewed push straight to `main`. The commit is the user's, through whatever commit workflow they use.
 
 ---
 
@@ -174,7 +186,7 @@ Otherwise, after the implementation is done and the user has committed:
 1. **`comment_on_card`** with the result, in the fixed shape:
 
    ```
-   🤖 **Claude Code** — done
+   🤖 **Claude Code** — done | proof of concept
 
    <1–3 sentences, in business terms: what changed for the person who asked>
 
@@ -189,6 +201,8 @@ Otherwise, after the implementation is done and the user has committed:
 
    If no commit exists yet because the user has not committed, say so rather than inventing a sha.
 
+   **A proof of concept never reports as done.** The team reads this comment as the state of the work, so a prototype reported like finished work is how a throwaway ends up depended on: say so on the first line, say what it showed, and put what it would still take to become real under **Open:**.
+
 2. **`move_card`** one column to the right — the next column by `position` from `get_board`, whatever it is called. **Never hardcode a column name**: this has to work on `Todo → Review` as well as on `K udělání → Ověřit`, on any board and in any language.
 
    **Show the move and have the user confirm it before making it**, every run: "`In progress` → `Review`, ok?". There is deliberately no stored mapping — one question per run is cheaper than a config file with no backup and no history.
@@ -199,7 +213,7 @@ Otherwise, after the implementation is done and the user has committed:
 
 ### 6. Close out
 
-One short summary to the user: which card, which repository, what the implementation verified, what went onto the card, and where the card now sits. Anything you worked around or decided alone goes here too.
+One short summary to the user: which card, which repository, which route it was built as and by which workflow, what that verified, what went onto the card, and where the card now sits. Anything you worked around or decided alone goes here too.
 
 ---
 
@@ -212,6 +226,7 @@ One short summary to the user: which card, which repository, what the implementa
 - **The report comment is for the person who asked, not for the maintainer.** Business language; the technical trail is the commit and the design document.
 - **Every comment is short and factual.** A handful of lines, no preamble, decisions rather than reasoning.
 - **Read the whole thread before writing a comment.** Comments cannot be edited or deleted.
+- **The route — proof of concept or full implementation — is the user's call, and the workflow that runs it is whatever this installation has.** Never hardcode a workflow name, and never substitute one route for the other to make a run possible.
 - **Never commit.**
 - **Never hardcode a column name.**
 - **Never move a card you asked a question about.**
