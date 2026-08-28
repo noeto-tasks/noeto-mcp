@@ -27,6 +27,13 @@ type Column struct {
 	BoardID  string `json:"board_id"`
 	Name     string `json:"name"`
 	Position int    `json:"position"`
+	// Where the board starts and where it ends, as the board itself declares it
+	// rather than as position suggests. At most one column is initial; several
+	// may be final, because Hotovo and Zrušeno both mean the card is done being
+	// work. Absent on a deployment older than the API that added them, which
+	// reads as false — no lane is terminal, and nothing gets filtered out.
+	IsInitial bool `json:"is_initial"`
+	IsFinal   bool `json:"is_final"`
 }
 
 type Card struct {

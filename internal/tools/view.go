@@ -42,9 +42,14 @@ type boardView struct {
 }
 
 type columnView struct {
-	ID    string     `json:"id"`
-	Name  string     `json:"name"`
-	Cards []cardView `json:"cards"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Reported only when true, so a board reads as a plain list of lanes until
+	// one of them is an endpoint. Initial is where new work lands; final means a
+	// card here is no longer work, which is what find_cards leaves out.
+	Initial bool       `json:"initial,omitempty"`
+	Final   bool       `json:"final,omitempty"`
+	Cards   []cardView `json:"cards"`
 }
 
 // cardView is a card as a model reads it: the fields that describe the work,
@@ -237,7 +242,11 @@ func (n names) board(d *noeto.BoardDetail) boardView {
 		cards := byColumn[col.ID]
 		sort.Slice(cards, func(i, j int) bool { return cards[i].Rank < cards[j].Rank })
 
-		cv := columnView{ID: col.ID, Name: col.Name, Cards: make([]cardView, 0, len(cards))}
+		cv := columnView{
+			ID: col.ID, Name: col.Name,
+			Initial: col.IsInitial, Final: col.IsFinal,
+			Cards: make([]cardView, 0, len(cards)),
+		}
 		for _, c := range cards {
 			cv.Cards = append(cv.Cards, n.card(c))
 		}

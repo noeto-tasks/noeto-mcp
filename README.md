@@ -132,8 +132,8 @@ different authentication story — not a packaging problem.
 | tool | what it does | |
 |---|---|---|
 | `list_boards` | the team's boards, with card counts | reads |
-| `get_board` | one board: columns in order, cards nested in them | reads |
-| `find_cards` | search every board — text, assignee, label, priority, column, due date, overdue | reads |
+| `get_board` | one board: columns in order, which of them start and end it, cards nested in them | reads |
+| `find_cards` | search every board — text, assignee, label, priority, column, due date, overdue; final columns left out | reads |
 | `get_card` | one card in full: comment thread, and the files on it by name | reads |
 | `list_members` | who is on the team | reads |
 | `whoami` | which member the access token belongs to | reads |

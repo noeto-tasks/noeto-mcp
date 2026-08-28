@@ -37,7 +37,10 @@ const (
 	otherID  = "a0000000-0000-4000-8000-000000000002"
 	michalID = "u0000000-0000-4000-8000-000000000001"
 	annaID   = "u0000000-0000-4000-8000-000000000002"
-	bugID    = "1a000000-0000-4000-8000-000000000001"
+	// shippedID sits in the board's final column, so the tests that care about
+	// what find_cards hides have a card to look for.
+	shippedID = "a0000000-0000-4000-8000-000000000003"
+	bugID     = "1a000000-0000-4000-8000-000000000001"
 )
 
 func newFakeAPI(t *testing.T) *fakeAPI {
@@ -103,9 +106,9 @@ func serveBoard(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{
 		"board": map[string]any{"id": boardID, "name": "Roadmap"},
 		"columns": []any{
-			map[string]any{"id": todoID, "board_id": boardID, "name": "Todo", "position": 0},
+			map[string]any{"id": todoID, "board_id": boardID, "name": "Todo", "position": 0, "is_initial": true},
 			map[string]any{"id": doingID, "board_id": boardID, "name": "In Progress", "position": 1},
-			map[string]any{"id": doneID, "board_id": boardID, "name": "Done", "position": 2},
+			map[string]any{"id": doneID, "board_id": boardID, "name": "Done", "position": 2, "is_final": true},
 		},
 		"labels": []any{
 			map[string]any{"id": bugID, "board_id": boardID, "name": "bug", "color": "#ff0000"},
@@ -119,10 +122,16 @@ func serveBoard(w http.ResponseWriter, _ *http.Request) {
 				"rank": "b", "comment_count": 1,
 			},
 			map[string]any{
-				"id": otherID, "board_id": boardID, "column_id": doneID,
+				"id": otherID, "board_id": boardID, "column_id": doingID,
 				"title": "Ship the landing page", "label_ids": []string{},
 				"created_by_user_id": "u-who-left",
 				"rank":               "b",
+			},
+			map[string]any{
+				"id": shippedID, "board_id": boardID, "column_id": doneID,
+				"title": "Retire the old pricing page", "label_ids": []string{},
+				"assignee_user_id": annaID, "created_by_user_id": annaID,
+				"rank": "c",
 			},
 		},
 	})
@@ -144,6 +153,89 @@ func newServer(t *testing.T) (*server, *fakeAPI) {
 	t.Helper()
 	fake := newFakeAPI(t)
 	return &server{api: noeto.New(fake.URL, "noeto_pat_test")}, fake
+}
+
+// ── final columns ──────────────────────────────────────────────────────────
+
+// The default question is "what is still to do", so a card parked in Done is
+// not an answer to it.
+func TestFindCards_LeavesOutTheFinalColumn(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cards {
+		if c.Column == "Done" {
+			t.Errorf("card %q came back from a final column", c.Title)
+		}
+	}
+	if len(cards) == 0 {
+		t.Error("everything was filtered out — the working columns should still answer")
+	}
+}
+
+func TestFindCards_IncludeDoneBringsThemBack(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{IncludeDone: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fromDone int
+	for _, c := range cards {
+		if c.Column == "Done" {
+			fromDone++
+		}
+	}
+	if fromDone == 0 {
+		t.Error("include_done returned nothing from the final column")
+	}
+}
+
+// Asking for a column by name and being handed an empty list would be the tool
+// arguing with its caller.
+func TestFindCards_NamingTheFinalColumnOverridesTheFilter(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Column: "Done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cards) == 0 {
+		t.Fatal("no cards for an explicit Done filter")
+	}
+	for _, c := range cards {
+		if c.Column != "Done" {
+			t.Errorf("card %q is in %q, want only Done", c.Title, c.Column)
+		}
+	}
+}
+
+func TestGetBoard_MarksTheEndpointColumns(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, board, err := s.getBoard(context.Background(), nil, getBoardIn{Board: boardID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, col := range board.Columns {
+		switch col.Name {
+		case "Todo":
+			if !col.Initial || col.Final {
+				t.Errorf("Todo = initial %v final %v, want the board's start", col.Initial, col.Final)
+			}
+		case "Done":
+			if !col.Final || col.Initial {
+				t.Errorf("Done = initial %v final %v, want the board's end", col.Initial, col.Final)
+			}
+		default:
+			if col.Initial || col.Final {
+				t.Errorf("%s is flagged as an endpoint", col.Name)
+			}
+		}
+	}
 }
 
 // ── whoami ─────────────────────────────────────────────────────────────────

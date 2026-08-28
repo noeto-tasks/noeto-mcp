@@ -31,9 +31,11 @@ func (t *server) registerBoards(s *mcp.Server) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "find_cards",
 		Description: "Search cards across every board in the team. All filters are " +
-			"optional and combine with AND. Use this for questions like \"what is " +
-			"assigned to me\" or \"what is overdue\"; use get_board when you already " +
-			"know the board and want to see its shape.",
+			"optional and combine with AND. Cards in a board's final columns — done, " +
+			"canceled — are left out, since the question is nearly always what is still " +
+			"to do; pass include_done or name that column to see them. Use this for " +
+			"questions like \"what is assigned to me\" or \"what is overdue\"; use " +
+			"get_board when you already know the board and want to see its shape.",
 		Annotations: readOnly(),
 	}, t.findCards)
 }
@@ -78,6 +80,11 @@ type findCardsIn struct {
 	DueBefore string `json:"due_before,omitempty" jsonschema:"YYYY-MM-DD; cards due on or before this day"`
 	DueAfter  string `json:"due_after,omitempty" jsonschema:"YYYY-MM-DD; cards due on or after this day"`
 	Overdue   bool   `json:"overdue,omitempty" jsonschema:"only cards whose due date has passed"`
+	// Off by default because the question behind almost every call is "what is
+	// still to do", and a board's finished lanes outgrow its working ones within
+	// weeks. Naming a column explicitly overrides it — asking for Hotovo and
+	// getting nothing back would be a tool arguing with its caller.
+	IncludeDone bool `json:"include_done,omitempty" jsonschema:"also return cards sitting in a board's final columns (done, canceled); left out by default unless the column filter names one"`
 }
 
 // findCards filters in this process, because the API has no search.
@@ -137,8 +144,19 @@ func (t *server) findCards(ctx context.Context, _ *mcp.CallToolRequest, in findC
 		columns := columnIndex(d.Columns)
 		labels := labelIndex(d.Labels)
 
+		// A card in a final column is not work any more. Left out unless the
+		// caller asked for those explicitly, or named a column — in which case
+		// the named column is the answer, final or not.
+		skipFinal := !in.IncludeDone && column == ""
+		finalColumns := make(map[string]bool, len(d.Columns))
+		for _, col := range d.Columns {
+			finalColumns[col.ID] = col.IsFinal
+		}
+
 		for _, c := range d.Cards {
 			switch {
+			case skipFinal && finalColumns[c.ColumnID]:
+				continue
 			case text != "" && !strings.Contains(strings.ToLower(c.Title), text) &&
 				!strings.Contains(strings.ToLower(c.Description), text):
 				continue
