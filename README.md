@@ -136,6 +136,7 @@ different authentication story — not a packaging problem.
 | `find_cards` | search every board — text, assignee, label, priority, column, due date, overdue | reads |
 | `get_card` | one card in full: comment thread, and the files on it by name | reads |
 | `list_members` | who is on the team | reads |
+| `whoami` | which member the access token belongs to | reads |
 | `create_card` | add a card to a column | writes |
 | `update_card` | title, description, assignee, priority, due date, labels | writes |
 | `move_card` | to another column, or reorder within one | writes |
@@ -145,7 +146,7 @@ different authentication story — not a packaging problem.
 | `read_attachment` | any file on a card — text as text, an image as an image | reads |
 
 **The last column is on the wire, not just in this table.** Each tool carries
-the spec's annotations, so a host can tell the seven reads from the five writes
+the spec's annotations, so a host can tell the eight reads from the five writes
 without being told and skip the approval prompt on the reads. The writes say
 what they are too: none reaches past the one team the token belongs to, and
 only `attach_document` is destructive — it deletes the copy it supersedes, so a

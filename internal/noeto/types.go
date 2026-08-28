@@ -137,8 +137,8 @@ type Attachment struct {
 	ID string `json:"id"`
 	// UploadedByID is what makes replace safe: an attachment this server did
 	// not upload is somebody else's file, and deleting it is not this tool's
-	// business. The id of "us" comes from the attachment we just created —
-	// a personal access token cannot ask /me who it is.
+	// business. The id of "us" comes from the attachment we just created rather
+	// than from Me, so the comparison rests on what this call actually wrote.
 	UploadedByID string    `json:"uploaded_by_user_id"`
 	UploadedBy   string    `json:"uploaded_by_name"`
 	Filename     string    `json:"filename"`

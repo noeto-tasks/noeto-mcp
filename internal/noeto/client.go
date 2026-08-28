@@ -18,6 +18,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rotisserie/eris"
@@ -34,6 +35,10 @@ type Client struct {
 	baseURL string
 	token   string
 	http    *http.Client
+
+	// me caches the token's own identity. See Me.
+	meMu sync.Mutex
+	me   *Member
 }
 
 // New builds a client. baseURL is the API root including /api/v1.
@@ -177,6 +182,34 @@ func (c *Client) GetCard(ctx context.Context, cardID string) (*CardDetail, error
 		return nil, err
 	}
 	return &out, nil
+}
+
+// Me is the member this client's access token belongs to.
+//
+// Cached for the life of the process, and deliberately not invalidated: a token
+// cannot change hands, so the answer cannot change either. The lock is held
+// across the request so that concurrent first calls make one round trip rather
+// than several; a failed call caches nothing, so a transient error does not
+// become a permanent one.
+//
+// The API answers this at /members/me rather than /me because a personal access
+// token is admitted only where a team is already the unit of access.
+func (c *Client) Me(ctx context.Context) (*Member, error) {
+	c.meMu.Lock()
+	defer c.meMu.Unlock()
+
+	if c.me != nil {
+		return c.me, nil
+	}
+
+	var out struct {
+		Member Member `json:"member"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/members/me", nil, &out); err != nil {
+		return nil, err
+	}
+	c.me = &out.Member
+	return c.me, nil
 }
 
 func (c *Client) ListMembers(ctx context.Context) ([]Member, error) {

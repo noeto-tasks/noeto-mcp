@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"noeto-mcp/internal/noeto"
 )
 
 func (t *server) registerTeam(s *mcp.Server) {
@@ -14,6 +16,26 @@ func (t *server) registerTeam(s *mcp.Server) {
 			"and for disambiguating when two people share a first name.",
 		Annotations: readOnly(),
 	}, t.listMembers)
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "whoami",
+		Description: "Who this server's access token belongs to — the member behind every " +
+			"write these tools make. Use it to attribute work, to filter a board down to " +
+			"that person's own cards, or to assign a card to them. Never infer this from a " +
+			"member whose name merely looks similar.",
+		Annotations: readOnly(),
+	}, t.whoami)
+}
+
+type whoamiIn struct{}
+
+func (t *server) whoami(ctx context.Context, _ *mcp.CallToolRequest, _ whoamiIn) (*mcp.CallToolResult, *memberView, error) {
+	me, err := t.api.Me(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	view := memberViews([]noeto.Member{*me})[0]
+	return nil, &view, nil
 }
 
 type listMembersIn struct{}

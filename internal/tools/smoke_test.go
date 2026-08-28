@@ -119,6 +119,17 @@ func TestSmoke_ContractStillHolds(t *testing.T) {
 		t.Logf("created_by decodes: %d of %d cards name a creator", withCreator, total)
 	}
 
+	// whoami is the one call whose answer the API cannot give at /me, so a
+	// failure here means either the token lost its membership or the deployment
+	// predates GET /members/me.
+	_, me, err := s.whoami(ctx, nil, whoamiIn{})
+	if err != nil {
+		t.Fatalf("whoami: %v", err)
+	}
+	if me.ID == "" || me.Name == "" {
+		t.Errorf("whoami = %+v, want the token's own member", me)
+	}
+
 	_, members, err := s.listMembers(ctx, nil, listMembersIn{})
 	if err != nil {
 		t.Fatalf("list_members: %v", err)

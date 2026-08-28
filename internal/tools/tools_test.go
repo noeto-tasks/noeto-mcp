@@ -23,6 +23,9 @@ type fakeAPI struct {
 	// assert on null-versus-absent: by the time it is a Go value the
 	// distinction is gone.
 	patched map[string]json.RawMessage
+	// meCalls counts the requests that reached /members/me, so a test can assert
+	// the identity is fetched once and not per call.
+	meCalls int
 }
 
 const (
@@ -51,6 +54,13 @@ func newFakeAPI(t *testing.T) *fakeAPI {
 
 	mux.HandleFunc("GET /boards/{id}", serveBoard)
 	mux.HandleFunc("GET /members", serveMembers)
+
+	mux.HandleFunc("GET /members/me", func(w http.ResponseWriter, _ *http.Request) {
+		fake.meCalls++
+		writeJSON(w, map[string]any{"member": map[string]any{
+			"user_id": michalID, "name": "Michal Bocek", "email": "michal@example.com", "role": "owner",
+		}})
+	})
 
 	mux.HandleFunc("GET /cards/{id}/detail", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
@@ -134,6 +144,68 @@ func newServer(t *testing.T) (*server, *fakeAPI) {
 	t.Helper()
 	fake := newFakeAPI(t)
 	return &server{api: noeto.New(fake.URL, "noeto_pat_test")}, fake
+}
+
+// ── whoami ─────────────────────────────────────────────────────────────────
+
+func TestWhoami_NamesTheTokensOwner(t *testing.T) {
+	s, _ := newServer(t)
+
+	_, me, err := s.whoami(context.Background(), nil, whoamiIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if me.ID != michalID || me.Name != "Michal Bocek" {
+		t.Errorf("whoami = %+v, want the token's own member", me)
+	}
+	if me.Role != "owner" {
+		t.Errorf("role = %q, want the membership's role", me.Role)
+	}
+}
+
+// The identity of a token cannot change, so asking twice must not cost two
+// round trips — every caller that wants to know who it is would otherwise pay.
+func TestWhoami_AsksTheAPIOnce(t *testing.T) {
+	s, fake := newServer(t)
+
+	for range 3 {
+		if _, _, err := s.whoami(context.Background(), nil, whoamiIn{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if fake.meCalls != 1 {
+		t.Errorf("requests to /members/me = %d, want 1", fake.meCalls)
+	}
+}
+
+// A failure must not be remembered as the answer: the next call has to try
+// again, or one blip leaves the server permanently unable to name itself.
+func TestWhoami_DoesNotCacheAFailure(t *testing.T) {
+	var calls int
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			writeJSON(w, map[string]any{"status": 500, "code": "internal", "detail": "boom"})
+			return
+		}
+		writeJSON(w, map[string]any{"member": map[string]any{
+			"user_id": michalID, "name": "Michal Bocek", "email": "michal@example.com", "role": "owner",
+		}})
+	}))
+	defer api.Close()
+	s := &server{api: noeto.New(api.URL, "noeto_pat_test")}
+
+	if _, _, err := s.whoami(context.Background(), nil, whoamiIn{}); err == nil {
+		t.Fatal("first call: want the API failure, got none")
+	}
+	_, me, err := s.whoami(context.Background(), nil, whoamiIn{})
+	if err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	if me.Name != "Michal Bocek" {
+		t.Errorf("whoami = %+v, want the member once the API recovered", me)
+	}
 }
 
 // ── find_cards ──────────────────────────────────────────────────────────────
