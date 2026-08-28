@@ -62,17 +62,19 @@ It is also what protects the thread. Comments cannot be edited or deleted, so a 
 
 #### Say it back
 
-One message, always the same four parts:
+One message, always the same parts, in this order — what the card says, then what the thread and the files add to it, then the edges:
 
 ```
 **What I would build** — the requirement as it now stands, in business terms.
-**What the thread and the attachments changed** — what you took from them that the description does not say. "Nothing" is an answer.
+**What the thread changed** — what you took from it that the description does not say. "Nothing" is an answer.
+**Files on the card** — name them and ask which to read. Nothing has been read yet, so this is a question, not a finding. Leave the line out when the card carries no files.
 **Out of scope** — what you read the card as *not* asking for.
-**Files on the card** — name them and ask which to read, when there are any. Skip the line when the card has none.
 **Still open** — one line per point: the question, then `→ default:` what you would do if nobody decides it.
 ```
 
-Say what you took from the card, not a summary of it — the card is already written. Reading a file the user picks is a round of the iteration like any other: read it, fold what it changed into the text, show the whole thing again. **Out of scope** is the part everyone forgets and the part that catches a misunderstanding fastest: a wrong boundary is easier to spot than a missing one.
+Say what you took from the card, not a summary of it — the card is already written. **Out of scope** is the part everyone forgets and the part that catches a misunderstanding fastest: a wrong boundary is easier to spot than a missing one.
+
+Reading a file the user picks is a round of the iteration like any other: read it, fold what it changed into the text — under **What the thread changed**, renamed to name the file if that reads better — and show the whole thing again.
 
 #### Iterate until the user says it is right
 
@@ -80,7 +82,7 @@ Say what you took from the card, not a summary of it — the card is already wri
 
 Two rules keep that workable:
 
-- **Re-render the whole requirement every round**, in the four parts above, never a diff against the last one. The user has to read the current state in one place and see what their correction did to the rest of it.
+- **Re-render the whole requirement every round**, in the parts above, never a diff against the last one. The user has to read the current state in one place and see what their correction did to the rest of it.
 - **Nothing advances until the user explicitly says it is right.** Not "yes" to one of the open points, not silence, not "do what you think". Ask for it plainly — "is this the requirement?" — and wait for the answer.
 
 **"Do what you think" answers a point, not the whole.** Fold that default into the text as a decision, show it, ask again. A default the user never saw written down is a decision only you know about.
@@ -135,7 +137,7 @@ Do **not** ask when the answer is in the code, in the thread, in the design docu
 #### Branch A — blocked
 
 1. `comment_on_card` with **only genuinely new questions**, and with whatever step 2 settled folded into the same comment. Read the thread first: `comment_on_card` is not idempotent and there is no way to edit or delete a comment, so a duplicate question is permanent noise on someone else's board. Ask few, ask precisely, and say what you would do by default if nobody answers.
-2. `update_card(assignee: …)` — the author of the last comment, falling back to whoever created the card. That is the pull signal: nothing in noeto will notify anyone, so the assignee is the only thing that says "your turn".
+2. `update_card(assignee: …)` — the author of the last comment, **unless that author is you**: comments from this workflow are posted in the context of the user running it, so the last comment on a card this skill has already touched is often its own. Assigning it back to them sends the signal nowhere. Check with `whoami` and fall through to whoever created the card. That is the pull signal: nothing in noeto will notify anyone, so the assignee is the only thing that says "your turn".
 3. **Do not move the card.** A question is not progress.
 4. Stop. Tell the user which card is now waiting on whom, and that re-running `/card <id>` after an answer picks it up again.
 
@@ -145,11 +147,18 @@ Post the comment step 2 asked for, if there is one to post, then continue to ste
 
 ---
 
-### 4. Design document, then implementation
+### 4. Route, design document, then implementation
 
-1. **Pick the repository** the user settled on in step 2. If it never came up there, infer it from the directories listed above and **confirm it before changing directory** — a card that reads like API work can turn out to be a frontend fix. If the card genuinely spans two repositories, that is **two implementation runs and two commits**, not one; say so and take them in order.
+1. **Pick the repository.** The listing in the context above is the candidate set: the git working trees beside you, or `(this directory itself)` when you are already standing in the repository — in which case there is nothing to pick and nothing to change directory to. Otherwise infer the target from the card and **confirm it before changing directory** — a card that reads like API work can turn out to be a frontend fix. If the card genuinely spans two repositories, that is **two implementation runs and two commits**, not one; say so and take them in order.
 
-2. **Write the design document** and `attach_document(card, markdown)` — leave `filename` at its default, `design.html`. One stable name per card, overwritten in place: `attach_document` takes any filename, but a card whose design record moves around is a card nobody can read back. Use a second filename only for a genuinely different document, not for a second version of this one.
+2. **Settle how it gets built**, before writing anything down — the route is part of the design, not a delivery detail. Two of them, and the card decides which one is honest:
+
+   - **Proof of concept** — the shortest path to something running. No tests, no review, thrown away if the answer is no. Right when the card asks whether something is possible at all, or when the user wants to see the idea working before committing to it.
+   - **Full implementation** — planning, tests, review, code that stays. Right when the card is work that ships.
+
+   **Ask which one**, with `AskUserQuestion` — it is two discrete options. Skip the question only when the card or step 2 already answered it: "zkusit, jestli to jde" is a proof of concept, acceptance criteria are an implementation. Say which one you read it as either way.
+
+3. **Write the design document** and `attach_document(card, markdown)` — leave `filename` at its default, `design.html`. One stable name per card, overwritten in place: `attach_document` takes any filename, but a card whose design record moves around is a card nobody can read back. Use a second filename only for a genuinely different document, not for a second version of this one.
 
    The contract for its content is what makes it worth writing: **it does not describe what the code does** — that is read from the code next time, and a description of code goes stale the first time anyone touches it. It records what the code cannot:
 
@@ -159,13 +168,6 @@ Post the comment step 2 asked for, if there is one to post, then continue to ste
    - **which route it was built as** — a proof of concept and an implementation leave code that means different things, and a month later nothing else in the repository says which one this was.
 
    The document is a **carrier of context, not an approval gate**. Nobody waits on it. Its value is realised on the next pass over the same card, when `read_document` hands it back.
-
-3. **Settle how it gets built.** Two routes, and the card decides which one is honest:
-
-   - **Proof of concept** — the shortest path to something running. No tests, no review, thrown away if the answer is no. Right when the card asks whether something is possible at all, or when the user wants to see the idea working before committing to it.
-   - **Full implementation** — planning, tests, review, code that stays. Right when the card is work that ships.
-
-   **Ask which one**, with `AskUserQuestion` — it is two discrete options. Skip the question only when the card or step 2 already answered it: "zkusit, jestli to jde" is a proof of concept, acceptance criteria are an implementation. Say which one you read it as either way.
 
 4. **Delegate to whatever this installation has, and do not assume a name.** Read the skills and commands available in this session and pick the one whose own description matches the route: something prototype-oriented for a proof of concept, something end-to-end — plan, implement, test, review — for a full implementation. **Never hardcode a workflow name here.** Installations differ, they get renamed, and a skill that insists on one name fails silently in an installation that does not have it.
 
@@ -206,6 +208,8 @@ Otherwise, after the implementation is done and the user has committed:
 2. **`move_card`** one column to the right — the next column by `position` from `get_board`, whatever it is called. **Never hardcode a column name**: this has to work on `Todo → Review` as well as on `K udělání → Ověřit`, on any board and in any language.
 
    **Show the move and have the user confirm it before making it**, every run: "`In progress` → `Review`, ok?". There is deliberately no stored mapping — one question per run is cheaper than a config file with no backup and no history.
+
+   **After a proof of concept, ask whether the card should advance at all** rather than only which column is next. Nothing was produced for anyone to review, and a card sitting in `Review` says otherwise. Often the honest answer is that it stays where it is and the comment carries the finding.
 
    **A card already in a column marked `final` does not move.** That is the board saying the work is over — done, canceled, rejected — and it is a flag on the column rather than the last position: a board can end in two lanes, and the last one by order is not always one of them. Say so and move on.
 
