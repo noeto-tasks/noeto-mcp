@@ -1,7 +1,7 @@
 ---
 name: card-lists
 description: How to present noeto cards to a person. Use whenever the answer is a list of cards — "my cards", "what am I working on", "what is on the board", "what is overdue", "what is assigned to X", "what should I do next" — and whenever a noeto card list is about to be shown for any other reason. Takes an optional argument: a team member whose cards to list, or the word for "all" to list the whole team; no argument means the person's own cards. Covers resolving who "me" is, which single call to make, and the table to render.
-version: 1.1.0
+version: 1.2.0
 argument-hint: [team member | all]
 ---
 
@@ -50,23 +50,24 @@ Filter server-side rather than fetching everything and filtering in the answer:
 order unless asked otherwise, because the top of the list is the answer to
 "what should I do next".
 
+**Finished cards are already out.** `find_cards` leaves out whatever sits in a
+board's final columns — done, canceled — so a list of work needs no filter of
+its own. Pass `include_done: true` only when the question is about finished work
+("what did we ship"), or name that column outright, which overrides it too.
+
 ## "My cards"
 
-**A personal access token cannot ask noeto who it belongs to.** The `/me`
-endpoint is `AuthUser` and tokens are confined to `AuthTenant`, so there is no
-"assigned to me" filter and no way to derive one. This is a hard limit, not a
-gap to work around.
+**`whoami` says who the access token belongs to.** When the list is theirs —
+they said "my cards", or gave no argument at all — call it and pass the name or
+id it returns straight into `find_cards(assignee: …)`.
 
-So when the list is theirs — they said "my cards", or they gave no argument at
-all — and you do not already know which team member they are:
+The answer is the member behind every write these tools make, which is what
+makes it the right one: the cards "assigned to me" are the cards assigned to
+whoever this server acts as. It costs one call per session — the client caches
+it — so there is no reason to ask the person instead.
 
-1. Call `list_members`.
-2. Ask them which one they are — once.
-3. Remember it for the rest of the session, and offer to record it so it does
-   not have to be asked again.
-
-Never guess from a name that looks similar to the account you are running under.
-Assigning or filtering against the wrong person is a silent wrong answer.
+Ask only when `whoami` fails, and never guess from a member whose name looks
+similar. Filtering against the wrong person is a silent wrong answer.
 
 ## The table
 
@@ -102,7 +103,7 @@ when they do not, since repeating one value down a column is noise.
   assigned to Michal, 2 overdue" — so the count does not have to be counted.
 - When something in the list is genuinely urgent, say it in a sentence under
   the table rather than relying on the reader spotting ⚠️.
-- **Empty is a real answer.** "Nothing assigned to you outside the last column"
+- **Empty is a real answer.** "Nothing assigned to you that is still open"
   is useful and complete; do not pad it, and do not silently widen the filter to
   find something to show.
 - Long titles get truncated with `…` rather than wrapping the table.

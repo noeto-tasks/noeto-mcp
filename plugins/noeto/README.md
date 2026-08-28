@@ -64,15 +64,15 @@ There is a command form when you would rather type than ask:
 /card-lists all          the whole team
 ```
 
-One thing it will ask you once: **which team member you are.** A personal access
-token cannot ask noeto who it belongs to — `/me` is `AuthUser` and tokens are
-confined to `AuthTenant` — so "my cards" has no way to resolve itself. Tell it
-once and it holds on to the answer.
+"My cards" resolves itself: `whoami` says which member the access token belongs
+to, so nothing has to be told who you are. Finished cards stay out of every
+list — a board marks the columns where work ends, and a search leaves those
+out unless you ask for them.
 
 **`/card`** — takes one card to implemented work and reports back onto it:
 
 ```
-/card                    pick from the cards not yet in a last column
+/card                    pick from the cards that are still work
 /card <card-id>          that card
 /card limit for parents  find it by text
 ```
