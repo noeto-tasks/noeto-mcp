@@ -40,10 +40,10 @@ func (t *server) whoami(ctx context.Context, _ *mcp.CallToolRequest, _ whoamiIn)
 
 type listMembersIn struct{}
 
-func (t *server) listMembers(ctx context.Context, _ *mcp.CallToolRequest, _ listMembersIn) (*mcp.CallToolResult, []memberView, error) {
+func (t *server) listMembers(ctx context.Context, _ *mcp.CallToolRequest, _ listMembersIn) (*mcp.CallToolResult, *memberList, error) {
 	members, err := t.api.ListMembers(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	return nil, memberViews(members), nil
+	return nil, &memberList{Members: memberViews(members)}, nil
 }

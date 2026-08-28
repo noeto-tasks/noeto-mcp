@@ -42,7 +42,7 @@ func (t *server) registerBoards(s *mcp.Server) {
 
 type listBoardsIn struct{}
 
-func (t *server) listBoards(ctx context.Context, _ *mcp.CallToolRequest, _ listBoardsIn) (*mcp.CallToolResult, []boardListItem, error) {
+func (t *server) listBoards(ctx context.Context, _ *mcp.CallToolRequest, _ listBoardsIn) (*mcp.CallToolResult, *boardList, error) {
 	boards, err := t.api.ListBoards(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -54,7 +54,7 @@ func (t *server) listBoards(ctx context.Context, _ *mcp.CallToolRequest, _ listB
 			ID: b.ID, Name: b.Name, Description: b.Description, Cards: b.CardCount,
 		})
 	}
-	return nil, out, nil
+	return nil, &boardList{Boards: out}, nil
 }
 
 type getBoardIn struct {
@@ -98,7 +98,7 @@ type findCardsIn struct {
 //
 // What this must not become is a paginated crawl. If a team grows past what one
 // fan-out can hold, the answer is a server-side query, not a smarter client.
-func (t *server) findCards(ctx context.Context, _ *mcp.CallToolRequest, in findCardsIn) (*mcp.CallToolResult, []cardView, error) {
+func (t *server) findCards(ctx context.Context, _ *mcp.CallToolRequest, in findCardsIn) (*mcp.CallToolResult, *cardList, error) {
 	members, err := t.api.ListMembers(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -205,7 +205,7 @@ func (t *server) findCards(ctx context.Context, _ *mcp.CallToolRequest, in findC
 	if out == nil {
 		out = []cardView{}
 	}
-	return nil, out, nil
+	return nil, &cardList{Cards: out}, nil
 }
 
 // scope is the set of boards to search: one named board, or all of them.

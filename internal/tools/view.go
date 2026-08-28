@@ -163,6 +163,23 @@ type memberView struct {
 	Role  string `json:"role"`
 }
 
+// A tool that answers with a list wraps it in an object.
+//
+// The spec types structuredContent as an object, so a bare JSON array is a
+// protocol violation a validating client rejects outright — the tool fails
+// before its result is ever read.
+type boardList struct {
+	Boards []boardListItem `json:"boards"`
+}
+
+type cardList struct {
+	Cards []cardView `json:"cards"`
+}
+
+type memberList struct {
+	Members []memberView `json:"members"`
+}
+
 // names indexes a board's labels and the team's members, so a card's UUID
 // references can be rendered as the words a person would use.
 type names struct {

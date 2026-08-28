@@ -162,10 +162,11 @@ func newServer(t *testing.T) (*server, *fakeAPI) {
 func TestFindCards_LeavesOutTheFinalColumn(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	for _, c := range cards {
 		if c.Column == "Done" {
 			t.Errorf("card %q came back from a final column", c.Title)
@@ -179,10 +180,11 @@ func TestFindCards_LeavesOutTheFinalColumn(t *testing.T) {
 func TestFindCards_IncludeDoneBringsThemBack(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{IncludeDone: true})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{IncludeDone: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	var fromDone int
 	for _, c := range cards {
 		if c.Column == "Done" {
@@ -199,10 +201,11 @@ func TestFindCards_IncludeDoneBringsThemBack(t *testing.T) {
 func TestFindCards_NamingTheFinalColumnOverridesTheFilter(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Column: "Done"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Column: "Done"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) == 0 {
 		t.Fatal("no cards for an explicit Done filter")
 	}
@@ -305,10 +308,11 @@ func TestWhoami_DoesNotCacheAFailure(t *testing.T) {
 func TestFindCards_ByAssigneeName(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Assignee: "Michal"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Assignee: "Michal"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) != 1 || cards[0].Title != "Fix the login bug" {
 		t.Fatalf("got %d cards %v, want just the assigned one", len(cards), cards)
 	}
@@ -321,10 +325,11 @@ func TestFindCards_ByAssigneeName(t *testing.T) {
 func TestFindCards_Unassigned(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Assignee: "none"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Assignee: "none"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) != 1 || cards[0].Title != "Ship the landing page" {
 		t.Fatalf("got %v, want only the unassigned card", cards)
 	}
@@ -335,10 +340,11 @@ func TestFindCards_FiltersCombineWithAnd(t *testing.T) {
 
 	// Each filter alone matches the login card; together with a column that
 	// does not hold it, nothing should come back.
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Assignee: "Michal", Column: "Done"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Assignee: "Michal", Column: "Done"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) != 0 {
 		t.Fatalf("got %v, want no results", cards)
 	}
@@ -347,10 +353,11 @@ func TestFindCards_FiltersCombineWithAnd(t *testing.T) {
 func TestFindCards_TextSearchesDescriptionsToo(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Text: "safari"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Text: "safari"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) != 1 {
 		t.Fatalf("got %d cards, want the one whose description mentions Safari", len(cards))
 	}
@@ -359,10 +366,11 @@ func TestFindCards_TextSearchesDescriptionsToo(t *testing.T) {
 func TestFindCards_NoMatchesIsAnEmptyListNotNull(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Text: "nothing matches this"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Text: "nothing matches this"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if cards == nil {
 		t.Fatal("an empty result must serialize as [], not null")
 	}
@@ -594,10 +602,11 @@ func TestClient_UnauthorizedExplainsItself(t *testing.T) {
 func TestFindCards_NamesWhoCreatedTheCard(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Text: "safari"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Text: "safari"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) != 1 {
 		t.Fatalf("got %d cards, want one", len(cards))
 	}
@@ -615,10 +624,11 @@ func TestFindCards_NamesWhoCreatedTheCard(t *testing.T) {
 func TestFindCards_CreatorWhoLeftTheTeamIsStillNamed(t *testing.T) {
 	s, _ := newServer(t)
 
-	_, cards, err := s.findCards(context.Background(), nil, findCardsIn{Text: "landing"})
+	_, cardsResult, err := s.findCards(context.Background(), nil, findCardsIn{Text: "landing"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	cards := cardsResult.Cards
 	if len(cards) != 1 {
 		t.Fatalf("got %d cards, want one", len(cards))
 	}

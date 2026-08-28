@@ -40,10 +40,11 @@ func TestSmoke_ContractStillHolds(t *testing.T) {
 	s := &server{api: noeto.New(apiURL, token)}
 	ctx := context.Background()
 
-	_, boards, err := s.listBoards(ctx, nil, listBoardsIn{})
+	_, boardsResult, err := s.listBoards(ctx, nil, listBoardsIn{})
 	if err != nil {
 		t.Fatalf("list_boards: %v", err)
 	}
+	boards := boardsResult.Boards
 	if len(boards) == 0 {
 		t.Skip("the team has no boards — nothing to check against")
 	}
@@ -130,10 +131,11 @@ func TestSmoke_ContractStillHolds(t *testing.T) {
 		t.Errorf("whoami = %+v, want the token's own member", me)
 	}
 
-	_, members, err := s.listMembers(ctx, nil, listMembersIn{})
+	_, membersResult, err := s.listMembers(ctx, nil, listMembersIn{})
 	if err != nil {
 		t.Fatalf("list_members: %v", err)
 	}
+	members := membersResult.Members
 	if len(members) == 0 || members[0].Email == "" {
 		t.Error("members did not decode — a team always has at least its owner")
 	}
