@@ -167,17 +167,15 @@ omitted argument leaves the field alone.
 
 `attach_document` and `read_document` are a pair, and the pair is the point.
 
-You pass Markdown and a filename. The Markdown is typeset into a single
-self-contained HTML file — inline CSS, no fonts to fetch, printable — and the
-source is sealed into that same file inside a `<script type="text/markdown">`
-block, which no browser renders or runs. `read_document` gives the source back
-byte for byte, so the next pass over the card builds on the last one instead of
-starting over. One artifact, no second copy to drift.
+You pass Markdown and a filename, and that Markdown is the file.
+`read_document` gives it back byte for byte, so the next pass over the card
+builds on the last one instead of starting over. One artifact, no second copy to
+drift.
 
 The **filename is the identity**: it is what tells two documents on the same
 card apart, what `read_document` asks for, and what a replace matches on.
-Attaching `handover.html` beside a `design.html` leaves the latter untouched.
-It defaults to `design.html`, which is the one the `/card` workflow keeps on
+Attaching `handover.md` beside a `design.md` leaves the latter untouched.
+It defaults to `design.md`, which is the one the `/card` workflow keeps on
 every card — the tools themselves are not about design documents specifically,
 which is why they are not named for one.
 
@@ -186,14 +184,15 @@ card records what was asked and a git history records what changed; neither
 records *why this shape and not another one*, which is the expensive thing to
 reconstruct a month later. So one attachment on the card carries it.
 
-HTML rather than Markdown because of how noeto serves attachments: inline
-preview is an allow-list of image types, so anything textual is downloaded
-rather than opened — and a downloaded `.html` opens typeset on a double click,
-where a `.md` opens as a wall of hashes. The cost is a trip through the
-Downloads folder; the only format that avoids it is PDF, which cannot carry its
-own source.
+This used to be an HTML file with the Markdown sealed into a
+`<script type="text/markdown">` block, so that a copy in a Downloads folder
+would open typeset on a double click. It bought a print stylesheet at the price
+of an encoding two repositories had to agree on forever, a rendered half that
+could drift from the source it came from, and a reader that had to unseal a file
+before it could show any of it. Markdown is legible unrendered, every editor and
+diff tool already opens it, and the web app renders it on the card anyway.
 
-Whatever the name, it is overwritten in place — no `design-v2.html`, because
+Whatever the name, it is overwritten in place — no `design-v2.md`, because
 after three rounds nobody can tell which one counts.
 A replace is **upload, complete, then delete**, in that order: attachments have
 no `PATCH` and the card has no unique constraint on the filename, so a duplicate
@@ -201,11 +200,12 @@ is briefly visible — and this way round the card holds two documents for a
 moment and never zero. A failed upload deletes the row it reserved rather than
 leaving a dead reservation behind.
 
-It only ever deletes a document it wrote itself — same name, same uploader,
-**and** carrying the sealed source block. A file somebody else uploaded is their
-work, and so is one you put there by hand through the web UI; both are left
-alone, and anything left behind is named in the answer so you know to clean it
-up. On the way back, if the card holds more than one file of the name,
+It only ever deletes a copy under **the same name uploaded by the same
+account**. A file somebody else uploaded is their work and is left alone, and so
+is one whose uploader the API declined to name; anything left behind is named in
+the answer so you know to clean it up. What it cannot tell apart any more is a
+`design.md` you put there yourself through the web UI — the sealed source block
+used to be that proof, and a plain `.md` has none. On the way back, if the card holds more than one file of the name,
 `read_document` says so and names whose copy it returned — the newest wins, and that is not always
 yours.
 

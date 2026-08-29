@@ -97,20 +97,19 @@ alongside whatever implementation and commit workflow you already have.
 
 ## The design document
 
-The `/card` flow keeps one attachment on each card, `design.html`, and reads it
+The `/card` flow keeps one attachment on each card, `design.md`, and reads it
 back on the next pass. That round trip is the point: a card records what was
 asked and a git history records what changed, but neither records *why this
 shape and not another one* — which is exactly what is expensive to reconstruct a
 month later.
 
-You write Markdown; `attach_document` typesets it into one self-contained HTML
-file and seals the source inside it, so `read_document` returns what you wrote,
-byte for byte. It is downloaded rather than previewed — noeto only previews
-images inline — and a downloaded `.html` opens typeset on a double click, which
-a `.md` does not.
+You write Markdown and the file is that Markdown, so `read_document` returns
+what you wrote, byte for byte. noeto serves it as a download — only images and
+PDFs open in a tab — but the web app reads it on the card itself, so the usual
+way to look at one is to click its name there.
 
 The tools are not specific to design documents: the filename is a parameter, and
-`design.html` is only the default. Attaching `handover.html` beside it leaves the
+`design.md` is only the default. Attaching `handover.md` beside it leaves the
 design record untouched.
 
 Files somebody else put on the card are read with `read_attachment` — a

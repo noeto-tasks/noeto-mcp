@@ -254,9 +254,9 @@ func (a *attachmentAPI) object(path string) []byte {
 }
 
 // plant puts an attachment on the card that this tool did not upload — the
-// fixture for "somebody else's file" and for "a design.html put here by hand".
-// The row's download URL is wired to the body so the ownership check has
-// something real to fetch.
+// fixture for "somebody else's file" and for "a design.md put here by hand".
+// The row's download URL is wired to the body so read_document has something
+// real to fetch.
 func (a *attachmentAPI) plant(t *testing.T, row noeto.Attachment, body []byte) {
 	t.Helper()
 	key := "/objects/planted-" + row.ID
@@ -304,7 +304,7 @@ Viz <https://example.com> & "uvozovky".
 // A document that comes back subtly different is worse than none: the next pass
 // would rewrite it from a corrupted base.
 func TestDocument_SourceSurvivesTheRoundTrip(t *testing.T) {
-	s, _ := newDocumentServer(t)
+	s, api := newDocumentServer(t)
 	ctx := context.Background()
 
 	if _, _, err := s.attachDocument(ctx, nil, attachDocumentIn{Card: cardID, Markdown: sampleMarkdown}); err != nil {
@@ -321,117 +321,42 @@ func TestDocument_SourceSurvivesTheRoundTrip(t *testing.T) {
 	if back.Filename != defaultDocumentName {
 		t.Errorf("filename = %q, want %q", back.Filename, defaultDocumentName)
 	}
+
+	// And the file is the Markdown, not a rendering of it with the Markdown
+	// tucked away somewhere inside. That is the whole reason the format changed,
+	// so it is asserted on the bytes in the store rather than inferred from the
+	// round trip above.
+	stored := api.object("/objects/f0000000-0000-4000-8000-000000000001")
+	if string(stored) != sampleMarkdown {
+		t.Errorf("the stored object is not the document:\n got: %q\nwant: %q", stored, sampleMarkdown)
+	}
 }
 
-// The one input that could break out of the script block. Escaping "<" is what
-// stops it; without that, everything after the fake closing tag would be lost
-// and the browser would start rendering the rest of the source as markup.
-func TestDocument_SourceContainingAClosingScriptTag(t *testing.T) {
-	hostile := "Nepoužívat inline skripty:\n\n```html\n</script><script>alert(1)</script>\n```\n\nKonec.\n"
+// Markdown is stored as it was written, so markup inside it is neither escaped
+// nor stripped on the way there and back. The HTML format this replaced had to
+// seal the source away from its own rendering to manage that; a .md has nothing
+// to seal it from.
+func TestDocument_MarkupInTheSourceIsStoredVerbatim(t *testing.T) {
+	source := "Nepoužívat inline skripty:\n\n```html\n</script><script>alert(1)</script>\n```\n\n" +
+		"Ampersand &amp; a &lt;tag&gt; a skutečné < a &.\n"
 
 	s, api := newDocumentServer(t)
 	ctx := context.Background()
 
-	if _, _, err := s.attachDocument(ctx, nil, attachDocumentIn{Card: cardID, Markdown: hostile}); err != nil {
+	if _, _, err := s.attachDocument(ctx, nil, attachDocumentIn{Card: cardID, Markdown: source}); err != nil {
 		t.Fatal(err)
+	}
+
+	if stored := string(api.object("/objects/f0000000-0000-4000-8000-000000000001")); stored != source {
+		t.Errorf("the stored object is not the document:\n got: %q\nwant: %q", stored, source)
 	}
 
 	_, back, err := s.readDocument(ctx, nil, readDocumentIn{Card: cardID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if back.Markdown != hostile {
-		t.Fatalf("source did not round trip:\n got: %q\nwant: %q", back.Markdown, hostile)
-	}
-
-	// And the document itself must hold exactly one script element — the data
-	// block — with nothing executable smuggled in beside it.
-	doc := string(api.object("/objects/f0000000-0000-4000-8000-000000000001"))
-	if got := strings.Count(doc, "<script"); got != 1 {
-		t.Errorf("document has %d script tags, want only the source block:\n%s", got, doc)
-	}
-}
-
-// Ampersands and angle brackets already escaped in the source must not be
-// double-decoded on the way back.
-func TestDocument_AlreadyEscapedEntitiesRoundTrip(t *testing.T) {
-	source := "Ampersand &amp; and &lt;tag&gt; and a real < and &.\n"
-
-	if got := unescapeSource(escapeSource(source)); got != source {
-		t.Fatalf("escape/unescape is not reversible:\n got: %q\nwant: %q", got, source)
-	}
-}
-
-// ── the rendered half ───────────────────────────────────────────────────────
-
-func TestRenderDocument_TypesetsAndSealsTheSource(t *testing.T) {
-	doc, err := renderDocument(documentSpec{
-		CardTitle: "Maximální počet dětí",
-		CardID:    cardID,
-		Filename:  defaultDocumentName,
-		Markdown:  sampleMarkdown,
-		Generated: time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	html := string(doc)
-
-	for _, want := range []string{
-		"<title>Maximální počet dětí</title>",
-		"<h1>Maximální počet dětí</h1>",
-		"noeto card " + cardID,
-		"2026-08-18",
-		"<table>",                    // GFM tables are the format these documents lean on
-		`<code class="language-go">`, // fenced code survives
-		"<strong>",                   // inline emphasis survives
-		sourceOpen,                   // and the source is sealed in
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("rendered document is missing %q", want)
-		}
-	}
-
-	// Self-contained: it is opened as file:// from a Downloads folder, possibly
-	// with no network at all.
-	for _, forbidden := range []string{"http://fonts.", "https://fonts.", "<link ", "cdn."} {
-		if strings.Contains(html, forbidden) {
-			t.Errorf("document reaches outside itself: found %q", forbidden)
-		}
-	}
-}
-
-// Raw HTML in the source must not become live markup in a file that is opened
-// from the local filesystem. goldmark's default refuses it; this pins that the
-// default is what we are actually running with.
-func TestRenderDocument_DoesNotPassRawHTMLThrough(t *testing.T) {
-	doc, err := renderDocument(documentSpec{
-		CardTitle: "x", CardID: cardID, Filename: defaultDocumentName,
-		Markdown:  "Text.\n\n<img src=x onerror=alert(1)>\n\n<script>alert(2)</script>\n",
-		Generated: time.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	html := string(doc)
-
-	// The rendered half only. The sealed source block holds the same text
-	// escaped, where it is inert data rather than markup — that is the point of
-	// the escaping, and asserting over the whole file would confuse the two.
-	rendered, _, _ := strings.Cut(html, sourceOpen)
-	if strings.Contains(rendered, "onerror") {
-		t.Errorf("raw HTML reached the rendered document:\n%s", rendered)
-	}
-	// One script element in the whole file: the sealed source. The injected one
-	// must not have become a second.
-	if got := strings.Count(html, "<script"); got != 1 {
-		t.Errorf("document has %d script tags, want only the source block", got)
-	}
-}
-
-func TestExtractSource_RejectsAFileItDidNotWrite(t *testing.T) {
-	if _, err := extractSource("<!doctype html><html><body>Jana's own file</body></html>"); err == nil {
-		t.Fatal("a file with no source block must be reported, not silently treated as empty")
+	if back.Markdown != source {
+		t.Fatalf("source did not round trip:\n got: %q\nwant: %q", back.Markdown, source)
 	}
 }
 
@@ -565,19 +490,19 @@ func TestDocumentFilename(t *testing.T) {
 	}{
 		{"", defaultDocumentName, true},
 		{"  ", defaultDocumentName, true},
-		{"design.html", "design.html", true},
-		{"navrh-2026-08-18.html", "navrh-2026-08-18.html", true},
-		{"DESIGN.HTML", "DESIGN.HTML", true},
-		{"design.md", "", false},
+		{"design.md", "design.md", true},
+		{"navrh-2026-08-18.md", "navrh-2026-08-18.md", true},
+		{"DESIGN.MD", "DESIGN.MD", true},
+		{"design.html", "", false},
 		{"design", "", false},
-		{"../design.html", "", false},
-		{"docs/design.html", "", false},
-		{`docs\design.html`, "", false},
-		{"design:v2.html", "", false},
-		{"design\n.html", "", false},
-		{"design\u202Elmth.html", "", false}, // right-to-left override reorders how it reads
-		{"design\u200F.html", "", false},
-		{strings.Repeat("a", 260) + ".html", "", false},
+		{"../design.md", "", false},
+		{"docs/design.md", "", false},
+		{`docs\design.md`, "", false},
+		{"design:v2.md", "", false},
+		{"design\n.md", "", false},
+		{"design\u202Edm.md", "", false}, // right-to-left override reorders how it reads
+		{"design\u200F.md", "", false},
+		{strings.Repeat("a", 260) + ".md", "", false},
 	} {
 		got, err := documentFilename(tc.in)
 		if tc.ok && err != nil {
@@ -633,12 +558,12 @@ func TestReadDocument_MissingFileListsWhatIsThere(t *testing.T) {
 func TestLatestNamed_PrefersTheNewestReadyCopy(t *testing.T) {
 	base := time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC)
 	list := []noeto.Attachment{
-		{ID: "old", Filename: "design.html", Status: noeto.AttachmentReady, CreatedAt: base},
-		{ID: "pending", Filename: "design.html", Status: "pending", CreatedAt: base.Add(2 * time.Hour)},
-		{ID: "new", Filename: "Design.HTML", Status: noeto.AttachmentReady, CreatedAt: base.Add(time.Hour)},
+		{ID: "old", Filename: "design.md", Status: noeto.AttachmentReady, CreatedAt: base},
+		{ID: "pending", Filename: "design.md", Status: "pending", CreatedAt: base.Add(2 * time.Hour)},
+		{ID: "new", Filename: "Design.MD", Status: noeto.AttachmentReady, CreatedAt: base.Add(time.Hour)},
 	}
 
-	found, candidates := latestNamed(list, "design.html")
+	found, candidates := latestNamed(list, "design.md")
 	if found == nil || found.ID != "new" {
 		t.Fatalf("got %+v, want the newest ready copy regardless of case", found)
 	}
@@ -685,9 +610,9 @@ func TestDocument_SourceSurvivesARealisticDocument(t *testing.T) {
 	// pre-allocates ContentLength bytes and fills only the first read leaves a
 	// full-length, zero-padded body, so a length check passes and only the end
 	// of the file is missing. This fails against both, and fails as a
-	// truncation rather than as a confusing error out of extractSource.
+	// truncation rather than as a document that merely reads oddly.
 	stored := api.object("/objects/f0000000-0000-4000-8000-000000000001")
-	if !bytes.HasSuffix(stored, []byte("</html>\n")) {
+	if !bytes.HasSuffix(stored, []byte("- položka jedna\n- položka dvě\n  - vnořená\n\n")) {
 		t.Fatalf("the stored document does not end where it should — the upload was truncated (%d bytes for a %d-byte source)",
 			len(stored), len(source))
 	}
@@ -719,17 +644,11 @@ func TestAttachDocument_RefusesAnOversizedDocument(t *testing.T) {
 func TestReadDocument_RefusesAnOversizedSourceRatherThanTruncating(t *testing.T) {
 	s, api := newDocumentServer(t)
 
-	huge, err := renderDocument(documentSpec{
-		CardTitle: "x", CardID: cardID, Filename: defaultDocumentName,
-		Markdown:  strings.Repeat("a", maxSourceBytes+1),
-		Generated: time.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	huge := []byte(strings.Repeat("a", maxSourceBytes+1))
 	api.plant(t, noeto.Attachment{
 		ID: "e0000000-0000-4000-8000-000000000009", UploadedByID: usID, UploadedBy: "Michal Bocek",
 		Filename: defaultDocumentName, Status: noeto.AttachmentReady, CreatedAt: time.Now(),
+		SizeBytes: int64(len(huge)),
 	}, huge)
 
 	_, view, err := s.readDocument(context.Background(), nil, readDocumentIn{Card: cardID})
@@ -773,30 +692,31 @@ func TestAttachDocument_RefusesToDeleteWhenTheUploaderIsUnknown(t *testing.T) {
 	}
 }
 
-// Same account, but not this tool's work: a design.html the same person
-// uploaded by hand through the web UI carries no sealed source block, and
-// deleting it would be exactly the data loss the uploader check was meant to
-// prevent.
-func TestAttachDocument_LeavesAHandUploadedFileAlone(t *testing.T) {
+// Same account, same name, but not this tool's work — and it is replaced all the
+// same. The HTML format could tell the two apart by the source block it sealed
+// into every file it wrote; a plain .md carries no such marker, so the name plus
+// the uploader is the whole test. Pinned rather than left implicit, because it
+// is the one thing the change to Markdown gave up.
+func TestAttachDocument_ReplacesAHandUploadedFileOfTheSameName(t *testing.T) {
 	s, api := newDocumentServer(t)
 
 	api.plant(t, noeto.Attachment{
 		ID: "e0000000-0000-4000-8000-000000000003", UploadedByID: usID, UploadedBy: "Michal Bocek",
 		Filename: defaultDocumentName, Status: noeto.AttachmentReady, CreatedAt: time.Now().Add(-time.Hour),
-	}, []byte("<!doctype html><html><body>Ručně nahraný návrh</body></html>"))
+	}, []byte("# Ručně nahraný návrh\n"))
 
 	_, view, err := s.attachDocument(context.Background(), nil, attachDocumentIn{Card: cardID, Markdown: "# Náš\n"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Replaced != 0 {
-		t.Errorf("replaced = %d — a file attach_document did not write must survive", view.Replaced)
+	if view.Replaced != 1 {
+		t.Errorf("replaced = %d, want the earlier copy of this name replaced", view.Replaced)
 	}
-	if !strings.Contains(view.Note, "source block") {
-		t.Errorf("the note must say why it was left: %q", view.Note)
+	if view.Note != "" {
+		t.Errorf("nothing was left behind, so there is nothing to note: %q", view.Note)
 	}
-	if rows := api.snapshot(); len(rows) != 2 {
-		t.Errorf("card holds %d attachments, want the hand-uploaded one and ours: %+v", len(rows), rows)
+	if rows := api.snapshot(); len(rows) != 1 {
+		t.Errorf("card holds %d attachments, want only the new one: %+v", len(rows), rows)
 	}
 }
 
@@ -877,7 +797,7 @@ func TestDocument_NoPresignedURLReachesAnErrorMessage(t *testing.T) {
 
 	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	dead.Close() // nothing is listening now, so every request fails in transport
-	unreachable := dead.URL + "/objects/design.html?X-Amz-Algorithm=AWS4-HMAC-SHA256&" + signature
+	unreachable := dead.URL + "/objects/design.md?X-Amz-Algorithm=AWS4-HMAC-SHA256&" + signature
 
 	t.Run("upload", func(t *testing.T) {
 		s, api := newDocumentServer(t)
@@ -917,78 +837,18 @@ func TestDocument_NoPresignedURLReachesAnErrorMessage(t *testing.T) {
 // ── name matching ───────────────────────────────────────────────────────────
 
 // Unicode simple folding — what strings.EqualFold does — treats U+017F as equal
-// to "s", so a planted "deſign.html" would answer to "design.html" while
+// to "s", so a planted "deſign.md" would answer to "design.md" while
 // looking like something else in the listing.
 func TestSameName_DoesNotFoldUnicodeLookAlikes(t *testing.T) {
-	if !sameName("Design.HTML", "design.html") {
+	if !sameName("Design.MD", "design.md") {
 		t.Error("ASCII case must still fold — the API stores whatever case it was given")
 	}
-	if sameName("deſign.html", "design.html") {
+	if sameName("deſign.md", "design.md") {
 		t.Error("a Unicode look-alike must not match")
 	}
 }
 
-// ── rendering ───────────────────────────────────────────────────────────────
-
-// The document is opened as file:// from a Downloads folder, where script runs
-// with local-file privileges. goldmark blanks dangerous link destinations by
-// default; this pins that the default is what we ship, because an added option
-// could remove it without anything else failing.
-func TestRenderDocument_BlanksDangerousLinkDestinations(t *testing.T) {
-	doc, err := renderDocument(documentSpec{
-		CardTitle: "x", CardID: cardID, Filename: defaultDocumentName,
-		Markdown: "[a](javascript:alert(1))\n\n![b](JaVaScRiPt:alert(2))\n\n" +
-			"[c](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)\n\n" +
-			"[d](vbscript:msgbox(1))\n\n[ok](https://example.com)\n",
-		Generated: time.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rendered, _, _ := strings.Cut(string(doc), sourceOpen)
-
-	for _, scheme := range []string{"javascript:", "JaVaScRiPt:", "data:text/html", "vbscript:"} {
-		if strings.Contains(rendered, scheme) {
-			t.Errorf("%s survived into the rendered document:\n%s", scheme, rendered)
-		}
-	}
-	if !strings.Contains(rendered, `href="https://example.com"`) {
-		t.Error("an ordinary link must still work")
-	}
-}
-
-// A candidate that cannot be fetched is not evidence that it is somebody
-// else's — it is no evidence at all. Nothing may be deleted on it, and the note
-// must not claim the file lacks a source block when nobody could look.
-//
-// An empty download link is how the API reports a presign it could not sign: it
-// logs and returns the row anyway, because the metadata is still worth showing.
-func TestAttachDocument_LeavesACopyItCannotFetchAlone(t *testing.T) {
-	s, api := newDocumentServer(t)
-
-	api.mu.Lock()
-	api.rows = append(api.rows, noeto.Attachment{
-		ID: "e0000000-0000-4000-8000-000000000005", UploadedByID: usID, UploadedBy: "Michal Bocek",
-		Filename: defaultDocumentName, Status: noeto.AttachmentReady, CreatedAt: time.Now().Add(-time.Hour),
-	})
-	api.mu.Unlock()
-
-	_, view, err := s.attachDocument(context.Background(), nil, attachDocumentIn{Card: cardID, Markdown: "# Náš\n"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if view.Replaced != 0 {
-		t.Errorf("replaced = %d — nothing may be deleted on a failed fetch", view.Replaced)
-	}
-	if !strings.Contains(view.Note, "could not be fetched") {
-		t.Errorf("note = %q, want it to say the check could not be made", view.Note)
-	}
-	if rows := api.snapshot(); len(rows) != 2 {
-		t.Errorf("card holds %d attachments, want both left in place: %+v", len(rows), rows)
-	}
-}
-
-// Anybody on the team can upload a design.html, and the newest wins. Only one
+// Anybody on the team can upload a design.md, and the newest wins. Only one
 // document can be returned, so the one thing that must not happen is the
 // substitution being invisible.
 func TestReadDocument_ReportsAShadowedDocument(t *testing.T) {
@@ -999,17 +859,10 @@ func TestReadDocument_ReportsAShadowedDocument(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	theirs, err := renderDocument(documentSpec{
-		CardTitle: "x", CardID: cardID, Filename: defaultDocumentName,
-		Markdown: "# Janin návrh\n", Generated: time.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	api.plant(t, noeto.Attachment{
 		ID: "e0000000-0000-4000-8000-000000000006", UploadedByID: themID, UploadedBy: "Jana Nováková",
 		Filename: defaultDocumentName, Status: noeto.AttachmentReady, CreatedAt: time.Now().Add(time.Hour),
-	}, theirs)
+	}, []byte("# Janin návrh\n"))
 
 	_, back, err := s.readDocument(ctx, nil, readDocumentIn{Card: cardID})
 	if err != nil {
@@ -1023,42 +876,13 @@ func TestReadDocument_ReportsAShadowedDocument(t *testing.T) {
 	}
 }
 
-// A row whose object is gone points at nothing, so removing it destroys
-// nothing. Treating it as unknown instead would mean a card that gains a fresh
-// copy on every call and never sheds the dead one.
-func TestAttachDocument_ReclaimsARowWhoseObjectIsGone(t *testing.T) {
-	s, api := newDocumentServer(t)
-
-	api.mu.Lock()
-	api.rows = append(api.rows, noeto.Attachment{
-		ID: "e0000000-0000-4000-8000-000000000007", UploadedByID: usID, UploadedBy: "Michal Bocek",
-		Filename: defaultDocumentName, Status: noeto.AttachmentReady, CreatedAt: time.Now().Add(-time.Hour),
-		DownloadURL: api.store.URL + "/objects/never-uploaded",
-	})
-	api.mu.Unlock()
-
-	_, view, err := s.attachDocument(context.Background(), nil, attachDocumentIn{Card: cardID, Markdown: "# Náš\n"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if view.Replaced != 1 {
-		t.Errorf("replaced = %d, want the dead row reclaimed", view.Replaced)
-	}
-	if view.Note != "" {
-		t.Errorf("nothing was left behind, so there is nothing to note: %q", view.Note)
-	}
-	if rows := api.snapshot(); len(rows) != 1 {
-		t.Errorf("card holds %d attachments, want only the new one: %+v", len(rows), rows)
-	}
-}
-
 // Exactly one leftover is the common case, and it must not read as
 // "1 copy/copies".
 func TestCopies_ReadsAsSomebodyWroteIt(t *testing.T) {
-	if got := copies(1, "design.html"); got != "1 copy of design.html" {
+	if got := copies(1, "design.md"); got != "1 copy of design.md" {
 		t.Errorf("copies(1) = %q", got)
 	}
-	if got := copies(3, "design.html"); got != "3 copies of design.html" {
+	if got := copies(3, "design.md"); got != "3 copies of design.md" {
 		t.Errorf("copies(3) = %q", got)
 	}
 }
@@ -1076,11 +900,11 @@ func TestDocument_TwoNamesCoexistOnOneCard(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, second, err := s.attachDocument(ctx, nil,
-		attachDocumentIn{Card: cardID, Markdown: "# Předání\n", Filename: "handover.html"})
+		attachDocumentIn{Card: cardID, Markdown: "# Předání\n", Filename: "handover.md"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.Filename != "handover.html" {
+	if second.Filename != "handover.md" {
 		t.Errorf("filename = %q, want the one that was asked for", second.Filename)
 	}
 	if second.Replaced != 0 {
@@ -1093,7 +917,7 @@ func TestDocument_TwoNamesCoexistOnOneCard(t *testing.T) {
 
 	for filename, want := range map[string]string{
 		defaultDocumentName: "# Návrh\n",
-		"handover.html":     "# Předání\n",
+		"handover.md":       "# Předání\n",
 	} {
 		_, back, err := s.readDocument(ctx, nil, readDocumentIn{Card: cardID, Filename: filename})
 		if err != nil {
@@ -1115,7 +939,7 @@ func TestDocument_ReplacingOneNameLeavesTheOther(t *testing.T) {
 
 	for _, in := range []attachDocumentIn{
 		{Card: cardID, Markdown: "# Návrh v1\n"},
-		{Card: cardID, Markdown: "# Předání\n", Filename: "handover.html"},
+		{Card: cardID, Markdown: "# Předání\n", Filename: "handover.md"},
 		{Card: cardID, Markdown: "# Návrh v2\n"},
 	} {
 		if _, _, err := s.attachDocument(ctx, nil, in); err != nil {
@@ -1127,7 +951,7 @@ func TestDocument_ReplacingOneNameLeavesTheOther(t *testing.T) {
 		t.Fatalf("card holds %d attachments, want one of each name: %+v", len(rows), rows)
 	}
 
-	_, handover, err := s.readDocument(ctx, nil, readDocumentIn{Card: cardID, Filename: "handover.html"})
+	_, handover, err := s.readDocument(ctx, nil, readDocumentIn{Card: cardID, Filename: "handover.md"})
 	if err != nil {
 		t.Fatal(err)
 	}

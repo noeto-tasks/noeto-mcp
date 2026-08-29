@@ -271,12 +271,13 @@ func TestReadAttachment_ADocumentComesBackAsItsSource(t *testing.T) {
 		t.Errorf("markdown = %q, want the source read_document would give", view.Markdown)
 	}
 	if view.Text != "" {
-		t.Error("a sealed document must not also come back as raw HTML")
+		t.Error("a document answers in markdown, not beside it in text")
 	}
 }
 
-// HTML somebody uploaded by hand carries no source block, and read_document
-// refuses it. Here it is ordinary text, which is the point of having both.
+// Text that is not Markdown answers in the text field. The distinction is what
+// keeps this tool's answer the same shape as read_document's for a document, and
+// an honest one for everything else.
 func TestReadAttachment_HandWrittenHTMLIsReadAsText(t *testing.T) {
 	s, api := newDocumentServer(t)
 	const body = "<h1>Poznámky</h1>\n<p>Nic zvláštního.</p>\n"
@@ -287,7 +288,24 @@ func TestReadAttachment_HandWrittenHTMLIsReadAsText(t *testing.T) {
 		t.Errorf("text = %q, want the file verbatim", view.Text)
 	}
 	if view.Markdown != "" {
-		t.Errorf("there is no source block to extract, got %q", view.Markdown)
+		t.Errorf("an .html is not Markdown, got %q", view.Markdown)
+	}
+}
+
+// A .md somebody uploaded through the web UI often arrives with no declared
+// type at all — the browser has none for it and the API's mime table usually
+// has none either — so the extension has to carry the decision.
+func TestReadAttachment_AnUndeclaredMarkdownFileIsReadAsMarkdown(t *testing.T) {
+	s, api := newDocumentServer(t)
+	const body = "# Poznámky\n\nNic zvláštního.\n"
+	put(t, api, "poznamky.md", "", []byte(body))
+
+	_, view := read(t, s, "poznamky.md")
+	if view.Markdown != body {
+		t.Errorf("markdown = %q, want the file verbatim", view.Markdown)
+	}
+	if view.Text != "" {
+		t.Errorf("a .md answers in markdown, not beside it in text: %q", view.Text)
 	}
 }
 
