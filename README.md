@@ -40,7 +40,7 @@ the native binary, or run two teams side by side.
 claude mcp add noeto -s user \
   -e NOETO_TOKEN=noeto_pat_… \
   -e NOETO_API_URL=https://api.noeto.online/api/v1 \
-  -- docker run -i --rm -e NOETO_TOKEN -e NOETO_API_URL ghcr.io/noeto-tasks/noeto-mcp:v0.4.1
+  -- docker run -i --rm -e NOETO_TOKEN -e NOETO_API_URL ghcr.io/noeto-tasks/noeto-mcp:v0.5.0
 ```
 
 `-s user` registers the server for every project instead of just the current
@@ -57,7 +57,7 @@ in `~/.claude.json` or the project's `.mcp.json`:
     "noeto": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-e", "NOETO_TOKEN", "-e", "NOETO_API_URL",
-               "ghcr.io/noeto-tasks/noeto-mcp:v0.4.1"],
+               "ghcr.io/noeto-tasks/noeto-mcp:v0.5.0"],
       "env": {
         "NOETO_TOKEN": "noeto_pat_…",
         "NOETO_API_URL": "https://api.noeto.online/api/v1"
