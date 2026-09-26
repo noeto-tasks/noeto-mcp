@@ -121,6 +121,16 @@ type attachmentView struct {
 	Markdown   string `json:"markdown,omitempty"`
 }
 
+type downloadView struct {
+	Filename   string `json:"filename"`
+	Path       string `json:"path"`
+	Type       string `json:"type,omitempty"`
+	Bytes      int64  `json:"bytes"`
+	UploadedBy string `json:"uploaded_by,omitempty"`
+	When       string `json:"when"`
+	Note       string `json:"note,omitempty"`
+}
+
 type commentView struct {
 	Author string `json:"author"`
 	When   string `json:"when"`

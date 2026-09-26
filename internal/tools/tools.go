@@ -35,15 +35,19 @@ import (
 
 type server struct {
 	api *noeto.Client
+	// downloads is the directory download_attachment saves into, one
+	// subdirectory per card.
+	downloads string
 }
 
 // Register adds every noeto tool to s.
-func Register(s *mcp.Server, api *noeto.Client) {
-	t := &server{api: api}
+func Register(s *mcp.Server, api *noeto.Client, downloads string) {
+	t := &server{api: api, downloads: downloads}
 	t.registerBoards(s)
 	t.registerCards(s)
 	t.registerDocuments(s)
 	t.registerAttachments(s)
+	t.registerDownloads(s)
 	t.registerTeam(s)
 }
 

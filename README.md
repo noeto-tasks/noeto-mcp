@@ -144,10 +144,12 @@ different authentication story — not a packaging problem.
 | `read_document` | the Markdown source of a document on a card | reads |
 | `attach_document` | write one, replacing the previous of that name | replaces |
 | `read_attachment` | any file on a card — text as text, an image as an image | reads |
+| `download_attachment` | save any file on a card to disk and get its path | saves locally |
 
 **The last column is on the wire, not just in this table.** Each tool carries
 the spec's annotations, so a host can tell the eight reads from the five writes
-without being told and skip the approval prompt on the reads. The writes say
+and the one save to disk without being told and skip the approval prompt on the
+reads. The writes say
 what they are too: none reaches past the one team the token belongs to, and
 only `attach_document` is destructive — it deletes the copy it supersedes, so a
 host can ask first. That matters because the absent-field defaults say the
@@ -241,6 +243,31 @@ the API signed into the upload — so an oversized file is refused before it is
 fetched rather than after. And as with the document pair, the presigned URL
 never leaves the process: contents come back, links never do.
 
+### Saving files to disk
+
+`download_attachment` is for what `read_attachment` refuses or cannot fit — a
+PDF, an archive, a spreadsheet, a large image. It saves the file whatever its
+type and answers with the path, and the agent opens it with whatever tools it
+has. Saving the same file again replaces the earlier copy.
+
+Files land in `NOETO_DOWNLOAD_DIR/<card id>/<filename>`, by default
+`noeto-attachments` in the system temp directory. The filename is the
+uploader's, so it is stripped of any directory part and of control characters
+before it touches the disk.
+
+**In Docker the directory has to be the same path on both sides**, or the path
+the agent gets back points inside a container that is already gone:
+
+```sh
+docker run -i --rm -e NOETO_TOKEN -e NOETO_API_URL \
+  -e NOETO_DOWNLOAD_DIR=/tmp/noeto-attachments \
+  -v /tmp/noeto-attachments:/tmp/noeto-attachments \
+  ghcr.io/noeto-tasks/noeto-mcp:v0.5.0
+```
+
+The plugin's server config already does this. On Linux, create the directory
+first and make it writable for uid 65532, which is who the image runs as.
+
 ## What it deliberately does not do
 
 - **Create boards, columns, or labels.** Setting a board up is a different job
@@ -251,10 +278,10 @@ never leaves the process: contents come back, links never do.
   previous copy of a document it wrote itself.
 - **Upload arbitrary files.** It is a three-request presigned dance, and the
   one file worth writing from here is the document `attach_document` writes.
-  Reading is a different matter and `read_attachment` does it — but like the
-  document pair, it fetches inside the process and answers with contents,
-  because a download link is a short-lived bearer credential a model must never
-  be handed.
+  Reading is a different matter and `read_attachment` and
+  `download_attachment` do it — but like the document pair, they fetch inside
+  the process and answer with contents or a local path, because a presigned
+  URL is a bearer credential a model must never be handed.
 
 ## Development
 

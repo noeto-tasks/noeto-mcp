@@ -137,9 +137,9 @@ type NewCard struct {
 
 // Attachment is a file on a card — GET /cards/{id}/attachments.
 //
-// DownloadURL is a presigned credential with a short life. It exists here so
-// this package can fetch the object; it must never reach the model, which is
-// why no view in the tools package carries it.
+// DownloadURL is the API's own link, which opens only for a team member. Here
+// it only says whether there is anything to download; DownloadAttachment asks
+// for the object-store URL itself.
 type Attachment struct {
 	ID string `json:"id"`
 	// UploadedByID is what makes replace safe: an attachment this server did

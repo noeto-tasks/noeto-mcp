@@ -499,13 +499,20 @@ func (c *Client) UploadAttachment(ctx context.Context, cardID string, in NewAtta
 
 // DownloadAttachment fetches an attachment's bytes.
 //
-// The presigned URL arrives on the listing and expires quickly, so it is used
-// here and never returned: a model handed one would repeat it into a transcript
-// that outlives it, and it is a bearer credential for as long as it lives.
+// The API's own download link answers with a redirect, and following that with
+// the token attached would hand the token to the object store. So the presigned
+// URL is asked for separately, used once, and never returned: a model handed one
+// would repeat it into a transcript, and it is a bearer credential while it lives.
 func (c *Client) DownloadAttachment(ctx context.Context, a Attachment, limit int64) ([]byte, error) {
 	if a.DownloadURL == "" {
 		return nil, &Error{Message: fmt.Sprintf(
-			"%q has no download link — the API could not sign one, which usually means object storage is misconfigured", a.Filename)}
+			"%q has no download link — attachments are switched off on this deployment, or its upload never finished", a.Filename)}
 	}
-	return c.getObject(ctx, a.DownloadURL, limit)
+	var link struct {
+		URL string `json:"url"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/attachments/"+url.PathEscape(a.ID)+"/download-link", nil, &link); err != nil {
+		return nil, err
+	}
+	return c.getObject(ctx, link.URL, limit)
 }

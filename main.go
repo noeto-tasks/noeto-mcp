@@ -5,11 +5,13 @@
 // stdin and stdout, which is why nothing here may ever write to stdout except
 // the protocol. Diagnostics go to stderr.
 //
-// Configuration is two environment variables:
+// Configuration is environment variables:
 //
-//	NOETO_TOKEN     a personal access token (noeto_pat_…), issued in noeto
-//	                under Settings → Access tokens
-//	NOETO_API_URL   the API root, default http://localhost:8081/api/v1
+//	NOETO_TOKEN         a personal access token (noeto_pat_…), issued in noeto
+//	                    under Settings → Access tokens
+//	NOETO_API_URL       the API root, default http://localhost:8081/api/v1
+//	NOETO_DOWNLOAD_DIR  where download_attachment saves files, default
+//	                    noeto-attachments in the system temp directory
 //
 // The token is bound to the team it was issued in, so one process serves one
 // team. That is deliberate on the API's side — it is what makes the blast
@@ -22,6 +24,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -72,12 +75,23 @@ func run() error {
 		apiURL = defaultAPIURL
 	}
 
+	downloads := strings.TrimSpace(os.Getenv("NOETO_DOWNLOAD_DIR"))
+	if downloads == "" {
+		downloads = filepath.Join(os.TempDir(), "noeto-attachments")
+	}
+	// Absolute, because the path goes back to an agent whose working directory
+	// is not this process's.
+	downloads, err := filepath.Abs(downloads)
+	if err != nil {
+		return eris.Wrap(err, "resolve NOETO_DOWNLOAD_DIR")
+	}
+
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "noeto",
 		Title:   "Noeto boards",
 		Version: version,
 	}, nil)
-	tools.Register(server, noeto.New(apiURL, token))
+	tools.Register(server, noeto.New(apiURL, token), downloads)
 
 	// Stop cleanly when the host goes away, so an interrupted agent does not
 	// leave a process holding a token.

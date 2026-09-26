@@ -22,7 +22,7 @@ func TestEveryToolAnswersWithAnObject(t *testing.T) {
 	ctx := context.Background()
 
 	s := mcp.NewServer(&mcp.Implementation{Name: "noeto", Version: "test"}, nil)
-	Register(s, noeto.New("http://127.0.0.1:0", "noeto_pat_test"))
+	Register(s, noeto.New("http://127.0.0.1:0", "noeto_pat_test"), t.TempDir())
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := s.Connect(ctx, serverTransport, nil)

@@ -46,7 +46,7 @@ that one yourself; the [repository README](../../README.md) has the command.
 
 ## What you get
 
-**Eleven MCP tools** — read the board, create and update cards, move them,
+**Fourteen MCP tools** — read the board, create and update cards, move them,
 comment, and keep a written document on a card. The
 [repository README](../../README.md) documents the whole surface.
 
@@ -117,4 +117,6 @@ screenshot of the bug, an exported spec, a log. `/card` reads them during triage
 because an attachment is usually the half of the requirement nobody restated in
 the description. Text comes back as text and an image as an image; a PDF or an
 archive is refused by name, so you are told the file is there rather than left to
-triage as though it were not.
+triage as though it were not. `download_attachment` saves any of them to
+`/tmp/noeto-attachments` (or `NOETO_DOWNLOAD_DIR`) and answers with the path, so
+a PDF or a spreadsheet can still be opened with whatever tools the agent has.

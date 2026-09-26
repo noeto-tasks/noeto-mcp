@@ -186,6 +186,20 @@ func newAttachmentAPI(t *testing.T) *attachmentAPI {
 		writeJSON(w, map[string]any{"attachment": api.present(*row)})
 	})
 
+	// The listing carries the API's own link; the object-store URL, which the
+	// rows keep in DownloadURL, only comes out of here.
+	mux.HandleFunc("GET /attachments/{id}/download-link", func(w http.ResponseWriter, r *http.Request) {
+		api.mu.Lock()
+		defer api.mu.Unlock()
+		row := api.find(r.PathValue("id"))
+		if row == nil || row.Status != noeto.AttachmentReady {
+			w.WriteHeader(http.StatusNotFound)
+			writeJSON(w, map[string]any{"status": 404, "code": "not_found", "detail": "The resource does not exist."})
+			return
+		}
+		writeJSON(w, map[string]any{"url": row.DownloadURL})
+	})
+
 	mux.HandleFunc("DELETE /attachments/{id}", func(w http.ResponseWriter, r *http.Request) {
 		api.mu.Lock()
 		defer api.mu.Unlock()
@@ -232,6 +246,11 @@ func (a *attachmentAPI) ready() []noeto.Attachment {
 func (a *attachmentAPI) present(row noeto.Attachment) noeto.Attachment {
 	if a.hideUploader {
 		row.UploadedByID = ""
+	}
+	if row.Status == noeto.AttachmentReady {
+		row.DownloadURL = "/api/v1/attachments/" + row.ID + "/download"
+	} else {
+		row.DownloadURL = ""
 	}
 	return row
 }
