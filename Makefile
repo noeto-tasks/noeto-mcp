@@ -26,7 +26,7 @@ VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo $(GIT_S
 IMAGE := ghcr.io/noeto-tasks/noeto-mcp
 
 # Update via: curl -s https://api.github.com/repos/golangci/golangci-lint/releases/latest | grep '"tag_name"'
-GOLANGCI_LINT_VERSION := v2.12.2
+GOLANGCI_LINT_VERSION := v2.14.0
 GOLANGCI_LINT := ./bin/golangci-lint
 
 # Update via: curl -s https://api.github.com/repos/goreleaser/goreleaser/releases/latest | grep '"tag_name"'
@@ -57,16 +57,15 @@ smoke: ## Check the API contract against a running noeto (needs NOETO_TOKEN)
 	@: "$${NOETO_TOKEN:?set NOETO_TOKEN to a noeto_pat_ token — issue one under Settings → Access tokens}"
 	go test ./internal/tools -run TestSmoke -count=1 -v
 
-# Installed with `go install` rather than the upstream shell script that
-# noeto-api uses. That script's checksum verification fails for the darwin/arm64
-# v2.12.2 asset — the tarball it downloads hashes to c8debe3b… where the script
-# expects a9c54498…, consistently, so it is a bad entry rather than a corrupted
-# download. `go install` verifies through the Go checksum database instead,
+# Installed with `go install` rather than the upstream shell script. That
+# script's checksum verification has failed for the darwin/arm64 asset of
+# v2.12.2 (consistently, so a bad entry rather than a corrupted download) and
+# again for v2.14.0. `go install` verifies through the Go checksum database instead,
 # which is a different and at least as trustworthy path. Revisit if upstream
 # fixes it; do not "solve" this by passing --no-verify to the script.
 lint: ## Run golangci-lint
-	@if [ ! -x $(GOLANGCI_LINT) ]; then \
-		echo "golangci-lint not found — installing $(GOLANGCI_LINT_VERSION)"; \
+	@if ! $(GOLANGCI_LINT) version 2>/dev/null | grep -q "version $(GOLANGCI_LINT_VERSION:v%=%) "; then \
+		echo "installing golangci-lint $(GOLANGCI_LINT_VERSION)"; \
 		GOBIN=$(CURDIR)/bin go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 	fi
 	$(GOLANGCI_LINT) run
