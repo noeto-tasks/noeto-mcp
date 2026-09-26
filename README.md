@@ -293,6 +293,7 @@ make docker       # build the image for this machine
 make docker-push  # build and push amd64 + arm64 to GHCR
 make release-dry  # build the release artifacts into dist/, publish nothing
 make release      # publish a tagged release + update the Homebrew tap
+make release-plugin RELEASE=x.y.z  # cut a whole version: pins, tag, image, release
 ```
 
 `make docker-push` needs `docker login ghcr.io` with a token carrying
@@ -306,14 +307,18 @@ Tokens can go in a gitignored `.env` rather than into your shell history —
 `cp .env.example .env` and fill in what you need; `make` reads it if it is
 there, and every target that wants one still says so when it is missing.
 
-There is no CI in this repo, so cutting a version is three commands from a
-laptop and they are easy to get out of order:
+There is no CI in this repo, so a version is cut from a laptop, on a clean
+`main`, with one command:
 
 ```sh
-git tag v0.1.0 && git push --tags
-make release
-make docker-push   # the same tag now names the image, not a commit sha
+make release-plugin RELEASE=x.y.z   # plain semver, no leading v
 ```
+
+It runs the tests and lint, pins the new image tag in `.mcp.json` and this
+README, bumps both plugin manifests, commits and tags `vx.y.z`, pushes the
+image, pushes `main` with the tag, then runs `make release`. The image goes out
+before the commit that pins it, so the plugin never points at a tag GHCR does
+not have.
 
 `make release-dry` runs the whole thing into `dist/` without publishing, which
 is the way to find out that an archive is malformed before a stranger does.
