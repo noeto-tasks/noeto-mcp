@@ -2,7 +2,7 @@
 # only hygiene: this image runs on other people's laptops, holding a credential
 # that can read and write their boards. There is no shell in it to be handed
 # one, and no package manager to fetch anything at runtime.
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /src
 
