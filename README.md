@@ -7,6 +7,8 @@ comment, and keep written documents attached to a card.
 It runs over stdio and authenticates with a personal access token, so it needs
 no browser and no cookie — which is the whole reason it exists.
 
+![Claude Code files a bug card, moves a card to In Progress and comments a plan, while the noeto board updates beside it](docs/demo.gif)
+
 ## Setup
 
 **1. Issue a token.** In noeto, Settings → Access tokens → Create token. Copy
