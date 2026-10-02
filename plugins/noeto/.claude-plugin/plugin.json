@@ -6,5 +6,6 @@
     "name": "noeto",
     "url": "https://noeto.online"
   },
-  "homepage": "https://github.com/noeto-tasks/noeto-mcp"
+  "homepage": "https://github.com/noeto-tasks/noeto-mcp",
+  "license": "MIT"
 }
