@@ -25,6 +25,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # process ends with the conversation.
 FROM gcr.io/distroless/static-debian13:nonroot
 
+# The MCP Registry accepts an OCI package only when this label names the
+# server.json entry; it must match the "name" there.
+LABEL io.modelcontextprotocol.server.name="io.github.noeto-tasks/noeto-mcp"
+
 COPY --from=builder /out/noeto-mcp /usr/local/bin/noeto-mcp
 
 USER nonroot:nonroot
