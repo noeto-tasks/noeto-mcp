@@ -120,9 +120,9 @@ release: $(GORELEASER) ## Publish a tagged release to GitHub Releases + Homebrew
 
 # ── Plugin release ──────────────────────────────────────────────────────────
 # Shipping a plugin version by hand is four things that have to agree: the image
-# tag pinned in .mcp.json and the README, the version in both manifests, the git
-# tag, and what is actually in GHCR. This target is the one command that keeps
-# them in step.
+# tag pinned in .mcp.json, the README and server.json, the version in the three
+# manifests, the git tag, and what is actually in GHCR. This target is the one
+# command that keeps them in step.
 #
 # RELEASE is plain semver — 0.2.1. The git tag and the image tag carry a `v`,
 # the two plugin manifests do not; that mismatch is the whole reason this is a
@@ -136,7 +136,8 @@ release: $(GORELEASER) ## Publish a tagged release to GitHub Releases + Homebrew
 
 PLUGIN_MANIFEST      := plugins/noeto/.claude-plugin/plugin.json
 MARKETPLACE_MANIFEST := .claude-plugin/marketplace.json
-PINNED_FILES         := plugins/noeto/.mcp.json README.md
+REGISTRY_MANIFEST    := server.json
+PINNED_FILES         := plugins/noeto/.mcp.json README.md $(REGISTRY_MANIFEST)
 
 release-plugin: $(GORELEASER) ## Ship a plugin version end to end (RELEASE=0.2.1)
 	@[ -n "$(RELEASE)" ] || { echo "set RELEASE to the new version, without a leading v — e.g. make release-plugin RELEASE=0.2.1"; exit 1; }
@@ -151,7 +152,7 @@ release-plugin: $(GORELEASER) ## Ship a plugin version end to end (RELEASE=0.2.1
 # perl, not `sed -i`, because the in-place flag takes an argument on BSD and not
 # on GNU, and this runs on both.
 	IMG='$(IMAGE)' TAG='v$(RELEASE)' perl -pi -e 's/\Q$$ENV{IMG}\E:[\w.-]+/$$ENV{IMG}:$$ENV{TAG}/g' $(PINNED_FILES)
-	VER='$(RELEASE)' perl -pi -e 's/("version"\s*:\s*)"[^"]*"/$$1"$$ENV{VER}"/' $(PLUGIN_MANIFEST) $(MARKETPLACE_MANIFEST)
+	VER='$(RELEASE)' perl -pi -e 's/("version"\s*:\s*)"[^"]*"/$$1"$$ENV{VER}"/' $(PLUGIN_MANIFEST) $(MARKETPLACE_MANIFEST) $(REGISTRY_MANIFEST)
 	@if command -v claude >/dev/null 2>&1; then claude plugin validate .; \
 	else echo "claude not on PATH — skipping manifest validation"; fi
 	git add $(PINNED_FILES) $(PLUGIN_MANIFEST) $(MARKETPLACE_MANIFEST)
