@@ -33,7 +33,7 @@ Then ask: *"What's on my board?"* More in the [plugin README](plugins/noeto/READ
 claude mcp add noeto -s user \
   -e NOETO_TOKEN=noeto_pat_… \
   -e NOETO_API_URL=https://api.noeto.online/api/v1 \
-  -- docker run -i --rm -e NOETO_TOKEN -e NOETO_API_URL ghcr.io/noeto-tasks/noeto-mcp:v0.6.4
+  -- docker run -i --rm -e NOETO_TOKEN -e NOETO_API_URL ghcr.io/noeto-tasks/noeto-mcp:v0.6.5
 ```
 
 Or by hand in `~/.claude.json`, `.mcp.json` or Claude Desktop's config:
@@ -44,7 +44,7 @@ Or by hand in `~/.claude.json`, `.mcp.json` or Claude Desktop's config:
     "noeto": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "-e", "NOETO_TOKEN", "-e", "NOETO_API_URL",
-               "ghcr.io/noeto-tasks/noeto-mcp:v0.6.4"],
+               "ghcr.io/noeto-tasks/noeto-mcp:v0.6.5"],
       "env": {
         "NOETO_TOKEN": "noeto_pat_…",
         "NOETO_API_URL": "https://api.noeto.online/api/v1"
