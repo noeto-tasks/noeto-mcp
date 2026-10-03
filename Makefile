@@ -117,7 +117,7 @@ release-dry: $(GORELEASER) ## Build the release artifacts into dist/ without pub
 # when it is set, GITHUB_TOKEN otherwise.
 release: $(GORELEASER) ## Publish a tagged release to GitHub Releases + Homebrew tap
 	@: "$${GITHUB_TOKEN:?set GITHUB_TOKEN to a token with repo scope}"
-	$(GORELEASER) release --clean
+	HOMEBREW_TAP_TOKEN="$${HOMEBREW_TAP_TOKEN:-$$GITHUB_TOKEN}" $(GORELEASER) release --clean
 
 # ── Plugin release ──────────────────────────────────────────────────────────
 # Shipping a plugin version is four things that have to agree: the image tag
