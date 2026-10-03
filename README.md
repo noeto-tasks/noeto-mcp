@@ -119,11 +119,13 @@ make smoke        # contract check against a running noeto (needs NOETO_TOKEN)
 make lint
 make docker       # build the image for this machine
 make release-dry  # build release artifacts into dist/, publish nothing
-make release-plugin RELEASE=x.y.z  # cut a version: pins, tag, image, release
 ```
 
-Run `make smoke` after any API change. There is no CI: a version is cut from a
-clean `main` with `make release-plugin`, which needs `GITHUB_TOKEN` (classic,
-`repo` and `write:packages`) and `docker login ghcr.io`. Tokens can go in a
-gitignored `.env` (`cp .env.example .env`). Then run the **Publish to MCP
-Registry** workflow in the Actions tab to list the new version in the registry.
+Run `make smoke` after any API change.
+
+**Releasing:** Actions → **Release** → Run workflow, with the version (`0.6.3`).
+It tests, pins the version, pushes the image, tags, publishes the GitHub release
+and Homebrew cask, and lists the version in the MCP Registry. It needs a
+`HOMEBREW_TAP_TOKEN` secret that can write to `noeto-tasks/homebrew-tap`.
+`make release-plugin RELEASE=x.y.z` does the same from a laptop, except the
+registry: run the **Publish to MCP Registry** workflow afterwards.

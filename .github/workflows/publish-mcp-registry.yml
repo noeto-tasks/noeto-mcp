@@ -1,9 +1,15 @@
-# Manual on purpose: run it after `make release-plugin` has pushed the image
-# that server.json pins.
+# The Release workflow calls this as its last job. Run it by hand only to
+# republish, or after a release cut with `make release-plugin`.
 name: Publish to MCP Registry
 
 on:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: The release tag whose server.json to publish
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -19,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install mcp-publisher
         run: |

@@ -4,7 +4,7 @@
 # needs Docker, `make install` needs a Go toolchain and a clone, and plenty of
 # people who want an agent on their board have neither.
 #
-# Run from a laptop, not from CI — `make release` after tagging. See the Makefile.
+# Run by the Release workflow after tagging, or `make release` from a laptop.
 version: 2
 
 project_name: noeto-mcp
@@ -12,8 +12,8 @@ project_name: noeto-mcp
 before:
   hooks:
     - go mod tidy
-    # Cheap here and expensive to skip: these binaries go to strangers, and
-    # there is no CI between the tag and the upload to catch anything.
+    # Cheap here and expensive to skip: these binaries go to strangers, and a
+    # release from a laptop has no other test run between the tag and the upload.
     - go test ./...
 
 builds:
@@ -45,6 +45,9 @@ homebrew_casks:
   - repository:
       owner: noeto-tasks
       name: homebrew-tap
+      # The Actions token cannot write to another repository, so CI passes a
+      # token scoped to the tap; a laptop release falls back to GITHUB_TOKEN.
+      token: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}{{ .Env.HOMEBREW_TAP_TOKEN }}{{ else }}{{ .Env.GITHUB_TOKEN }}{{ end }}'
     homepage: https://noeto.online
     description: An MCP server that lets an AI agent work a noeto board.
     # Strip the quarantine flag macOS puts on anything downloaded. Without this
