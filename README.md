@@ -1,5 +1,7 @@
 # noeto-mcp
 
+[![noeto-tasks/noeto-mcp MCP server](https://glama.ai/mcp/servers/noeto-tasks/noeto-mcp/badges/score.svg)](https://glama.ai/mcp/servers/noeto-tasks/noeto-mcp)
+
 An MCP server that lets an AI agent work a [noeto](https://noeto.online) kanban
 board: read it, create and update cards, move them, comment, and keep a written
 document on a card.
