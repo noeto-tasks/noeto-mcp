@@ -125,4 +125,5 @@ make release-plugin RELEASE=x.y.z  # cut a version: pins, tag, image, release
 Run `make smoke` after any API change. There is no CI: a version is cut from a
 clean `main` with `make release-plugin`, which needs `GITHUB_TOKEN` (classic,
 `repo` and `write:packages`) and `docker login ghcr.io`. Tokens can go in a
-gitignored `.env` (`cp .env.example .env`).
+gitignored `.env` (`cp .env.example .env`). Then run the **Publish to MCP
+Registry** workflow in the Actions tab to list the new version in the registry.
