@@ -8,11 +8,11 @@
     "url": "https://github.com/noeto-tasks/noeto-mcp",
     "source": "github"
   },
-  "version": "0.6.3",
+  "version": "0.6.4",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/noeto-tasks/noeto-mcp:v0.6.3",
+      "identifier": "ghcr.io/noeto-tasks/noeto-mcp:v0.6.4",
       "transport": {
         "type": "stdio"
       },

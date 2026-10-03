@@ -7,7 +7,7 @@
       "-e", "NOETO_API_URL",
       "-e", "NOETO_DOWNLOAD_DIR=${NOETO_DOWNLOAD_DIR:-/tmp/noeto-attachments}",
       "-v", "${NOETO_DOWNLOAD_DIR:-/tmp/noeto-attachments}:${NOETO_DOWNLOAD_DIR:-/tmp/noeto-attachments}",
-      "ghcr.io/noeto-tasks/noeto-mcp:v0.6.3"
+      "ghcr.io/noeto-tasks/noeto-mcp:v0.6.4"
     ]
   }
 }
