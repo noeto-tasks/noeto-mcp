@@ -1,6 +1,6 @@
 // Package tools registers the noeto tool surface on an MCP server.
 //
-// Fifteen tools, shaped by what someone asks an agent to do rather than by what
+// Sixteen tools, shaped by what someone asks an agent to do rather than by what
 // the API exposes. The API has thirty-five endpoints; a bridge that published
 // all of them would spend the model's context on schemas for things it will
 // never call (push subscriptions, invitation revocation, OAuth callbacks) and
@@ -15,8 +15,9 @@
 //     none of them will use.
 //   - Deletion of anything a person made. Destroying work on a model's
 //     judgement is a poor trade against the convenience; a card in the wrong
-//     column is recoverable and a deleted one is not. The one delete that
-//     exists is attach_document replacing the previous copy of its own document.
+//     column is recoverable and a deleted one is not. The deletes that exist
+//     touch only files this token's own account uploaded: attach_document
+//     replacing its previous copy, and delete_attachment.
 //
 // Every file tool fetches or uploads inside this process and answers with
 // contents or a local path, because a presigned link is a short-lived bearer
@@ -47,6 +48,7 @@ func Register(s *mcp.Server, api *noeto.Client, downloads string) {
 	t.registerAttachments(s)
 	t.registerDownloads(s)
 	t.registerUploads(s)
+	t.registerDeletes(s)
 	t.registerTeam(s)
 }
 

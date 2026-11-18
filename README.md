@@ -99,6 +99,7 @@ absolute path.
 | `read_attachment` | any file on a card: text and images inline, the rest saved to disk | reads |
 | `download_attachment` | save any file on a card to disk and return its path | saves locally |
 | `attach_file` | upload a file of any type from this machine to a card | writes |
+| `delete_attachment` | remove a file this token's account uploaded | deletes |
 
 - Boards, columns, labels and people can be named: `move_card(card, column: "Done")`.
   The card itself needs its id, so a typo can never edit the wrong card.
@@ -112,7 +113,8 @@ absolute path.
 - `attach_file` reads the path on the machine the server runs on. In Docker that
   means only files under a mounted directory.
 
-It deliberately **cannot delete anything a person made**, and does not create
+It deliberately **cannot delete anything somebody else made** — only files its own
+account uploaded — and does not create
 boards, columns or labels. The reasoning behind these and the other choices is in
 [docs/internals.md](docs/internals.md).
 

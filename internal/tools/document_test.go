@@ -113,6 +113,11 @@ func newAttachmentAPI(t *testing.T) *attachmentAPI {
 
 	mux.HandleFunc("GET /boards/{id}", serveBoard)
 	mux.HandleFunc("GET /members", serveMembers)
+	mux.HandleFunc("GET /members/me", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]any{"member": map[string]any{
+			"user_id": usID, "name": "Michal Bocek", "email": "michal@example.com", "role": "manager",
+		}})
+	})
 
 	mux.HandleFunc("GET /cards/{id}/detail", func(w http.ResponseWriter, _ *http.Request) {
 		api.mu.Lock()

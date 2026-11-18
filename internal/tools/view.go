@@ -138,6 +138,12 @@ type uploadView struct {
 	Bytes    int64  `json:"bytes"`
 }
 
+type deletedView struct {
+	Filename string `json:"filename"`
+	Bytes    int64  `json:"bytes"`
+	Note     string `json:"note,omitempty"`
+}
+
 type commentView struct {
 	Author string `json:"author"`
 	When   string `json:"when"`

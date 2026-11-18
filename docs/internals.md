@@ -8,8 +8,9 @@ that are not obvious from the outside.
 Each tool carries the MCP spec's annotations, so a host can tell the reads from
 the writes and the one save to disk without being told, and skip the approval
 prompt on the reads. None of the writes reaches past the one team the token
-belongs to, and only `attach_document` is destructive — it deletes the copy it
-supersedes, so a host can ask first. That matters because the absent-field
+belongs to, and only `attach_document` and `delete_attachment` are destructive —
+the first deletes the copy it supersedes, the second the file it is given — so a
+host can ask first. That matters because the absent-field
 defaults say the opposite: a tool that ships no annotations is assumed
 destructive and open-world.
 
@@ -96,8 +97,11 @@ replaces the earlier copy.
 - **Create boards, columns or labels.** Setting a board up is a different job
   from working one, and those schemas would cost every conversation context it
   will not use.
-- **Delete anything a person made.** A card in the wrong column is recoverable;
-  a deleted one is not.
+- **Delete anything somebody else made.** A card in the wrong column is
+  recoverable; a deleted one is not. `delete_attachment` removes only a file
+  this token's own account uploaded — even for a manager, whom the API would let
+  delete any file — so a model can undo its own account's work and nothing more.
+  Cards and comments cannot be deleted at all.
 
 ## Why `make smoke` exists
 
