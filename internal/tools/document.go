@@ -288,21 +288,35 @@ func (t *server) readDocument(ctx context.Context, _ *mcp.CallToolRequest, in re
 	return nil, view, nil
 }
 
-// documentFilename validates the name and supplies the default.
-//
-// Narrow on purpose. The API accepts far more than this — it only strips
-// directory components and control characters — but these documents have one
-// job, and a name that survives a download onto somebody's desktop is part of
-// it. Hence: .md, because that is what says the file is Markdown to every
-// editor, viewer and diff tool that will open it; and no colon, because macOS
-// shows a colon in a filename as a slash in the Finder and the file becomes
-// hard to talk about.
+// documentFilename validates the name and supplies the default. On top of
+// the rules for any file written to a card, it insists on .md, because that is
+// what says the file is Markdown to every editor, viewer and diff tool.
 func documentFilename(raw string) (string, error) {
-	name := strings.TrimSpace(raw)
-	if name == "" {
+	if strings.TrimSpace(raw) == "" {
 		return defaultDocumentName, nil
 	}
+	name, err := writableFilename(raw)
+	if err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(filepath.Ext(name), ".md") {
+		return "", &badInput{field: "filename", want: "a name ending in .md", got: raw}
+	}
+	return name, nil
+}
 
+// writableFilename validates a name this server is about to put on a card.
+//
+// Narrow on purpose. The API accepts far more than this — it only strips
+// directory components and control characters — but a name that survives a
+// download onto somebody's desktop is part of the job. Hence no colon, because
+// macOS shows a colon in a filename as a slash in the Finder and the file
+// becomes hard to talk about.
+func writableFilename(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if name == "" {
+		return "", &badInput{field: "filename", want: "non-empty", got: raw}
+	}
 	if strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
 		return "", &badInput{field: "filename", want: "a bare filename with no directory part", got: raw}
 	}
@@ -314,16 +328,12 @@ func documentFilename(raw string) (string, error) {
 	}
 	// Bidirectional format characters reorder how the name reads without
 	// changing what it is — the classic trick for making an extension look like
-	// something else in a file listing. This name's whole job is to be read in
-	// a Downloads folder.
+	// something else in a file listing.
 	if strings.ContainsFunc(name, isBidiControl) {
 		return "", &badInput{field: "filename", want: "a name without bidirectional format characters", got: raw}
 	}
 	if len(name) > 255 {
 		return "", &badInput{field: "filename", want: "at most 255 characters", got: raw}
-	}
-	if !strings.EqualFold(filepath.Ext(name), ".md") {
-		return "", &badInput{field: "filename", want: "a name ending in .md", got: raw}
 	}
 	return name, nil
 }

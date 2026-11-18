@@ -9,6 +9,8 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -88,6 +90,33 @@ func refused(t *testing.T, s *server, filename string) string {
 	return err.Error()
 }
 
+// savedInstead reads a file that cannot be shown inline and checks it reached
+// the disk whole, with nothing of it in the conversation.
+func savedInstead(t *testing.T, s *server, filename string, want []byte) *attachmentView {
+	t.Helper()
+	res, view := read(t, s, filename)
+	if res != nil {
+		t.Fatalf("%s must not come back as a content block: %+v", filename, res)
+	}
+	if view.Text != "" || view.Markdown != "" {
+		t.Errorf("%s must not reach the conversation as text: %+v", filename, view)
+	}
+	if view.Path == "" {
+		t.Fatalf("%s came back with no path: %+v", filename, view)
+	}
+	saved, err := os.ReadFile(view.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(saved, want) {
+		t.Errorf("saved %q, want %q", saved, want)
+	}
+	if !strings.Contains(view.Note, "saved to path") {
+		t.Errorf("note should say why it was saved rather than shown, got %q", view.Note)
+	}
+	return view
+}
+
 // ── text ────────────────────────────────────────────────────────────────────
 
 func TestReadAttachment_TextComesBackWithItsProvenance(t *testing.T) {
@@ -121,23 +150,29 @@ func TestReadAttachment_TextComesBackWithItsProvenance(t *testing.T) {
 
 // The declared type is a field the uploader filled in. If it decided anything
 // on its own, this is the call that would put a binary into the conversation.
-func TestReadAttachment_BinaryCallingItselfTextIsRefused(t *testing.T) {
+func TestReadAttachment_BinaryCallingItselfTextIsSavedNotShown(t *testing.T) {
 	s, api := newDocumentServer(t)
-	put(t, api, "notes.txt", "text/plain", []byte{0x00, 0xff, 0xfe, 'h', 'i', 0x80})
+	body := []byte{0x00, 0xff, 0xfe, 'h', 'i', 0x80}
+	put(t, api, "notes.txt", "text/plain", body)
 
-	if msg := refused(t, s, "notes.txt"); !strings.Contains(msg, "UTF-8") {
-		t.Errorf("the refusal should say the bytes did not decode: %s", msg)
+	if view := savedInstead(t, s, "notes.txt", body); !strings.Contains(view.Note, "UTF-8") {
+		t.Errorf("the note should say the bytes did not decode: %s", view.Note)
 	}
 }
 
 // An escape sequence in a file somebody uploaded is rendered by whatever
-// terminal prints the answer, which is why this is refused and not merely odd.
-func TestReadAttachment_TextHoldingAnEscapeSequenceIsRefused(t *testing.T) {
+// terminal prints the answer, which is why this is kept out of the answer.
+func TestReadAttachment_TextHoldingAnEscapeSequenceIsSavedNotShown(t *testing.T) {
 	s, api := newDocumentServer(t)
-	put(t, api, "motd.txt", "text/plain", []byte("ahoj \x1b[2J\x1b[1;1H nic tu není"))
+	body := []byte("ahoj \x1b[2J\x1b[1;1H nic tu není")
+	put(t, api, "motd.txt", "text/plain", body)
 
-	if msg := refused(t, s, "motd.txt"); !strings.Contains(msg, "control character") {
-		t.Errorf("the refusal should name the problem: %s", msg)
+	view := savedInstead(t, s, "motd.txt", body)
+	if !strings.Contains(view.Note, "control character") {
+		t.Errorf("the note should name the problem: %s", view.Note)
+	}
+	if strings.Contains(view.Note, "\x1b") {
+		t.Errorf("the escape sequence leaked into the note: %q", view.Note)
 	}
 }
 
@@ -180,12 +215,13 @@ func TestReadAttachment_ImageComesBackAsAnImageBlock(t *testing.T) {
 	}
 }
 
-func TestReadAttachment_BinaryCallingItselfAnImageIsRefused(t *testing.T) {
+func TestReadAttachment_BinaryCallingItselfAnImageIsSavedNotShown(t *testing.T) {
 	s, api := newDocumentServer(t)
-	put(t, api, "sken.png", "image/png", []byte("PK\x03\x04 tohle je zip"))
+	body := []byte("PK\x03\x04 tohle je zip")
+	put(t, api, "sken.png", "image/png", body)
 
-	if msg := refused(t, s, "sken.png"); !strings.Contains(msg, "not an image") {
-		t.Errorf("the refusal should say what the bytes are: %s", msg)
+	if view := savedInstead(t, s, "sken.png", body); !strings.Contains(view.Note, "not an image") {
+		t.Errorf("the note should say what the bytes are: %s", view.Note)
 	}
 }
 
@@ -224,33 +260,40 @@ func TestReadAttachment_SVGIsReadAsSourceNotAsAnImage(t *testing.T) {
 	}
 }
 
-// ── what cannot be handed over ──────────────────────────────────────────────
+// ── what cannot be shown inline ─────────────────────────────────────────────
 
-func TestReadAttachment_PDFIsRefusedByName(t *testing.T) {
+func TestReadAttachment_PDFIsSavedToDisk(t *testing.T) {
 	s, api := newDocumentServer(t)
-	put(t, api, "zadani.pdf", "application/pdf", []byte("%PDF-1.7\n"))
+	pdf := []byte("%PDF-1.7\n\x00\x01binary\n%%EOF")
+	put(t, api, "zadani.pdf", "application/pdf", pdf)
 
-	msg := refused(t, s, "zadani.pdf")
-	for _, want := range []string{"zadani.pdf", "application/pdf", "browser"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("the refusal should mention %q: %s", want, msg)
-		}
+	view := savedInstead(t, s, "zadani.pdf", pdf)
+
+	if want := filepath.Join(s.downloads, cardID, "zadani.pdf"); view.Path != want {
+		t.Errorf("path = %s, want %s — the same place download_attachment saves to", view.Path, want)
+	}
+	if !strings.Contains(view.Note, "application/pdf") {
+		t.Errorf("the note should name the type: %s", view.Note)
+	}
+	if view.UploadedBy != "Jana Nováková" {
+		t.Errorf("uploaded_by = %q, want the uploader named", view.UploadedBy)
 	}
 }
 
 // The size the API signed into the presigned PUT is the object's real length,
-// so the refusal happens before anything is fetched. The body here is tiny: if
-// the check ran after the download this would succeed.
-func TestReadAttachment_OversizeIsRefusedBeforeTheDownload(t *testing.T) {
+// so the decision to save rather than show is made before anything is fetched.
+// The body here is tiny: if the check ran after the download it would be shown.
+func TestReadAttachment_OversizeIsSavedRatherThanShown(t *testing.T) {
 	s, api := newDocumentServer(t)
+	body := []byte("malé")
 	api.plant(t, noeto.Attachment{
 		ID: "e0000000-0000-4000-8000-000000000abc", UploadedByID: themID, UploadedBy: "Jana Nováková",
 		Filename: "dump.txt", ContentType: "text/plain", SizeBytes: maxTextBytes + 1,
 		Status: noeto.AttachmentReady, CreatedAt: time.Now(),
-	}, []byte("malé"))
+	}, body)
 
-	if msg := refused(t, s, "dump.txt"); !strings.Contains(msg, "browser") {
-		t.Errorf("the refusal should say what to do instead: %s", msg)
+	if view := savedInstead(t, s, "dump.txt", body); !strings.Contains(view.Note, "limit") {
+		t.Errorf("the note should say it was too big to show: %s", view.Note)
 	}
 }
 

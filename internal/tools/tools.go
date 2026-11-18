@@ -1,6 +1,6 @@
 // Package tools registers the noeto tool surface on an MCP server.
 //
-// Twelve tools, shaped by what someone asks an agent to do rather than by what
+// Fifteen tools, shaped by what someone asks an agent to do rather than by what
 // the API exposes. The API has thirty-five endpoints; a bridge that published
 // all of them would spend the model's context on schemas for things it will
 // never call (push subscriptions, invitation revocation, OAuth callbacks) and
@@ -17,12 +17,10 @@
 //     judgement is a poor trade against the convenience; a card in the wrong
 //     column is recoverable and a deleted one is not. The one delete that
 //     exists is attach_document replacing the previous copy of its own document.
-//   - Uploading arbitrary files. It takes three requests through a presigned
-//     PUT, and the one file worth writing from here is the document
-//     attach_document writes. Reading is a different matter and read_attachment
-//     does it — but like the document pair, it fetches inside this process and
-//     answers with contents, because a download link is a short-lived bearer
-//     credential a model must never be handed.
+//
+// Every file tool fetches or uploads inside this process and answers with
+// contents or a local path, because a presigned link is a short-lived bearer
+// credential a model must never be handed.
 package tools
 
 import (
@@ -48,6 +46,7 @@ func Register(s *mcp.Server, api *noeto.Client, downloads string) {
 	t.registerDocuments(s)
 	t.registerAttachments(s)
 	t.registerDownloads(s)
+	t.registerUploads(s)
 	t.registerTeam(s)
 }
 
@@ -58,7 +57,7 @@ func Register(s *mcp.Server, api *noeto.Client, downloads string) {
 // tool with no annotations is destructive and open-world, because that is what
 // the spec assumes when the fields are absent. Neither is true of most of these
 // — a token reaches one team, and only attach_document deletes anything — so
-// every tool below says which it is, and the read-only seven can be run without
+// every tool below says which it is, and the reads can be run without
 // a prompt.
 func readOnly() *mcp.ToolAnnotations {
 	// DestructiveHint and IdempotentHint are left off: the spec reads them only

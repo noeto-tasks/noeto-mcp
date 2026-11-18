@@ -115,8 +115,8 @@ design record untouched.
 Files somebody else put on the card are read with `read_attachment` — a
 screenshot of the bug, an exported spec, a log. `/card` reads them during triage,
 because an attachment is usually the half of the requirement nobody restated in
-the description. Text comes back as text and an image as an image; a PDF or an
-archive is refused by name, so you are told the file is there rather than left to
-triage as though it were not. `download_attachment` saves any of them to
-`/tmp/noeto-attachments` (or `NOETO_DOWNLOAD_DIR`) and answers with the path, so
-a PDF or a spreadsheet can still be opened with whatever tools the agent has.
+the description. Text comes back as text and an image as an image; a PDF, a
+spreadsheet or anything too big to show inline is saved to
+`/tmp/noeto-attachments` (or `NOETO_DOWNLOAD_DIR`) and answered with the path, so
+it can still be opened with whatever tools the agent has. `attach_file` goes the
+other way: it uploads a file of any type from this machine onto the card.

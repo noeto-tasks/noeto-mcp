@@ -299,7 +299,7 @@ func (a *attachmentAPI) snapshot() []noeto.Attachment {
 func newDocumentServer(t *testing.T) (*server, *attachmentAPI) {
 	t.Helper()
 	api := newAttachmentAPI(t)
-	return &server{api: noeto.New(api.URL, "noeto_pat_test")}, api
+	return &server{api: noeto.New(api.URL, "noeto_pat_test"), downloads: t.TempDir()}, api
 }
 
 const sampleMarkdown = `# Limit dětí u rodiče

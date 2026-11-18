@@ -107,8 +107,8 @@ type fileView struct {
 	When       string `json:"when"`
 }
 
-// attachmentView is one attachment's contents. Which of Text and Markdown is
-// set says how it was read; for an image neither is, and the pixels travel
+// attachmentView is one attachment's contents. Which of Text, Markdown and
+// Path is set says how it was read; for an image none is, and the pixels travel
 // beside this as an image content block.
 type attachmentView struct {
 	Filename   string `json:"filename"`
@@ -119,6 +119,7 @@ type attachmentView struct {
 	Note       string `json:"note,omitempty"`
 	Text       string `json:"text,omitempty"`
 	Markdown   string `json:"markdown,omitempty"`
+	Path       string `json:"path,omitempty"`
 }
 
 type downloadView struct {
@@ -129,6 +130,12 @@ type downloadView struct {
 	UploadedBy string `json:"uploaded_by,omitempty"`
 	When       string `json:"when"`
 	Note       string `json:"note,omitempty"`
+}
+
+type uploadView struct {
+	Filename string `json:"filename"`
+	Type     string `json:"type,omitempty"`
+	Bytes    int64  `json:"bytes"`
 }
 
 type commentView struct {

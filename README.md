@@ -96,18 +96,21 @@ absolute path.
 | `comment_on_card` | post a comment | writes |
 | `read_document` | the Markdown of a document on a card | reads |
 | `attach_document` | write one, replacing the previous copy of that name | replaces |
-| `read_attachment` | a text or image file on a card | reads |
+| `read_attachment` | any file on a card: text and images inline, the rest saved to disk | reads |
 | `download_attachment` | save any file on a card to disk and return its path | saves locally |
+| `attach_file` | upload a file of any type from this machine to a card | writes |
 
 - Boards, columns, labels and people can be named: `move_card(card, column: "Done")`.
   The card itself needs its id, so a typo can never edit the wrong card.
 - `none` clears a field: `update_card(card, due: "none")`. An omitted argument
   leaves it alone.
-- Documents and text files are capped at 512 KB, images at 1.5 MB. Bigger files
-  and other types go through `download_attachment`.
+- Documents and text files are shown inline up to 512 KB, images up to 1.5 MB.
+  Bigger files and other types are saved to disk and answered with the path.
 - Downloads land in `NOETO_DOWNLOAD_DIR` (default: `noeto-attachments` in the
   system temp directory). In Docker, mount that directory at the same path on
   both sides — the plugin's config already does.
+- `attach_file` reads the path on the machine the server runs on. In Docker that
+  means only files under a mounted directory.
 
 It deliberately **cannot delete anything a person made**, and does not create
 boards, columns or labels. The reasoning behind these and the other choices is in

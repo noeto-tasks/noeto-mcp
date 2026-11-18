@@ -61,16 +61,29 @@ overrule it: text has to decode as UTF-8 with no control characters, and an
 image is re-sniffed and sent under the type its bytes actually are. SVG is
 markup that can carry script, so its source comes back as text.
 
-Anything else — a PDF, an archive — is refused by name and size, because there
-is no useful way to put it in front of a model, and a refusal that says so beats
-base64 the model throws away. Limits are checked against the length the API
-signed into the upload, so an oversized file is refused before it is fetched.
+Anything else — a PDF, an archive, a file past the inline limit, or bytes that
+fail either check — is saved to the download directory and answered with its
+path and the reason, so the agent opens it with whatever reads that kind of file
+instead of being handed base64 it throws away. The inline limits are checked
+against the length the API signed into the upload, so the choice is made before
+anything is fetched. `read_attachment` stays annotated read-only: its only write
+is into this server's own download cache.
+
+## Uploading files
+
+`attach_file` takes an absolute path — the agent's working directory is not this
+process's — and adds the file beside whatever the card holds; it never replaces
+anything. The name goes through the same rules as a document's, minus the `.md`.
+The type comes from the extension and is sniffed only when the extension names
+nothing; the API records what the object store reports anyway. It can send any
+file this process can read, so it is annotated as a write and its description
+tells the model to attach only what the user asked for.
 
 ## Presigned URLs never leave the process
 
-Every file tool fetches inside the server and answers with contents or a local
-path. A presigned URL is a bearer credential a model must never be handed —
-which is also why the server does not upload arbitrary files.
+Every file tool fetches and uploads inside the server and answers with contents
+or a local path. A presigned URL is a bearer credential a model must never be
+handed.
 
 ## Downloads
 
